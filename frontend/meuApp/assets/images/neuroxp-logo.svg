@@ -1,0 +1,15 @@
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- Brain -->
+  <path d="M100 30 C120 30 130 40 135 55 C138 65 138 75 135 85 L130 95 L135 100 C140 105 140 115 135 125 C130 140 120 150 100 150 C80 150 70 140 65 125 C60 115 60 105 65 100 L70 95 L65 85 C62 75 62 65 65 55 C70 40 80 30 100 30 Z" fill="#D97563" stroke="none"/>
+  
+  <!-- Brain details/folds -->
+  <path d="M85 45 Q85 55 90 60" fill="none" stroke="#B85A4B" stroke-width="2" stroke-linecap="round"/>
+  <path d="M115 45 Q115 55 110 60" fill="none" stroke="#B85A4B" stroke-width="2" stroke-linecap="round"/>
+  <path d="M80 65 Q90 70 100 70 Q110 70 120 65" fill="none" stroke="#B85A4B" stroke-width="2" stroke-linecap="round"/>
+  <path d="M75 80 Q85 85 100 85 Q115 85 125 80" fill="none" stroke="#B85A4B" stroke-width="2" stroke-linecap="round"/>
+  <path d="M78 100 Q90 105 100 105 Q110 105 122 100" fill="none" stroke="#B85A4B" stroke-width="2" stroke-linecap="round"/>
+  <path d="M82 120 Q95 125 100 125 Q105 125 118 120" fill="none" stroke="#B85A4B" stroke-width="2" stroke-linecap="round"/>
+  
+  <!-- Brain stem -->
+  <ellipse cx="100" cy="160" rx="12" ry="25" fill="#A54835"/>
+</svg>
