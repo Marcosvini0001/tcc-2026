@@ -42,7 +42,7 @@ export default function ProfileScreen() {
         <View style={styles.header}>
           <View style={styles.logoContainer}>
             <Image
-              source={require('@/img/neuroxp.jpeg')}
+              source={require('@/assets/images/neuroxp-logo.svg')}
               style={styles.logo}
               contentFit="contain"
             />
@@ -89,7 +89,7 @@ export default function ProfileScreen() {
           <Text style={styles.navIcon}>🏠</Text>
           <Text style={styles.navLabel}>Home</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => {}}>
+        <TouchableOpacity style={styles.navItem} onPress={() => router.push('/dashboard')}>
           <Text style={styles.navIcon}>✓</Text>
           <Text style={styles.navLabel}>Tarefas</Text>
         </TouchableOpacity>
@@ -97,7 +97,7 @@ export default function ProfileScreen() {
           <Text style={styles.navIcon}>🏆</Text>
           <Text style={styles.navLabel}>Ranking</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => {}}>
+        <TouchableOpacity style={styles.navItem} onPress={() => router.push('/profile')}>
           <Text style={styles.navIcon}>👤</Text>
           <Text style={styles.navLabel}>Perfil</Text>
         </TouchableOpacity>

@@ -15,40 +15,40 @@ import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { useAuthStore } from '../src/stores/authStore';
 
-export default function LoginScreen() {
+export default function RegisterScreen() {
   const router = useRouter();
-  const { login } = useAuthStore();
+  const { register } = useAuthStore();
+  const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = async () => {
-    if (!email || !password) {
+  const handleRegister = async () => {
+    if (!nome || !email || !password || !confirm) {
       Alert.alert('Erro', 'Preencha todos os campos');
+      return;
+    }
+
+    if (password !== confirm) {
+      Alert.alert('Erro', 'Senhas não coincidem');
       return;
     }
 
     setIsLoading(true);
     try {
-      await login(email, password);
+      await register(nome, email, password);
       router.replace('/dashboard');
     } catch (error) {
-      Alert.alert('Erro', 'Credenciais inválidas');
+      Alert.alert('Erro', 'Erro ao cadastrar');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleRegister = () => {
-    // Implementar navegação para tela de cadastro
-    router.push('/register');
+  const handleBackToLogin = () => {
+    router.push('/login');
   };
-
-  const handleForgotPassword = () => {
-    // Implementar navegação para tela de recuperação
-    router.push('/forgot-password');
-  };
-
 
   return (
     <SafeAreaView style={styles.container}>
@@ -58,7 +58,6 @@ export default function LoginScreen() {
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}>
-          {/* Logo */}
           <View style={styles.logoContainer}>
             <Image
               source={require('@/assets/images/neuroxp-logo.svg')}
@@ -67,10 +66,19 @@ export default function LoginScreen() {
             />
           </View>
 
-          {/* Title */}
-          <Text style={styles.title}>NeuroXP</Text>
+          <Text style={styles.title}>Criar conta</Text>
 
-          {/* Email Input */}
+          <View style={styles.inputContainer}>
+            <Text style={styles.inputLabel}>👤</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Nome"
+              placeholderTextColor="#999"
+              value={name}
+              onChangeText={setName}
+            />
+          </View>
+
           <View style={styles.inputContainer}>
             <Text style={styles.inputLabel}>✉️</Text>
             <TextInput
@@ -83,7 +91,6 @@ export default function LoginScreen() {
             />
           </View>
 
-          {/* Password Input */}
           <View style={styles.inputContainer}>
             <Text style={styles.inputLabel}>🔒</Text>
             <TextInput
@@ -96,35 +103,29 @@ export default function LoginScreen() {
             />
           </View>
 
-          {/* Forgot Password Link */}
-          <TouchableOpacity onPress={handleForgotPassword}>
-            <Text style={styles.forgotPassword}>Esqueceu a senha?</Text>
-          </TouchableOpacity>
-
-          {/* Login Button */}
-          <TouchableOpacity
-            style={styles.loginButton}
-            onPress={handleLogin}
-            activeOpacity={0.8}
-            disabled={isLoading}>
-            <Text style={styles.loginButtonText}>{isLoading ? 'Entrando...' : 'Entrar'}</Text>
-          </TouchableOpacity>
-
-          {/* Divider */}
-          <View style={styles.dividerContainer}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>ou</Text>
-            <View style={styles.dividerLine} />
+          <View style={styles.inputContainer}>
+            <Text style={styles.inputLabel}>🔒</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Confirmar senha"
+              placeholderTextColor="#999"
+              secureTextEntry
+              value={confirm}
+              onChangeText={setConfirm}
+            />
           </View>
 
-          {/* Register Button */}
           <TouchableOpacity
-            style={styles.registerButton}
+            style={styles.loginButton}
             onPress={handleRegister}
-            activeOpacity={0.8}>
-            <Text style={styles.registerButtonText}>Cadastrar</Text>
+            activeOpacity={0.8}
+            disabled={isLoading}>
+            <Text style={styles.loginButtonText}>{isLoading ? 'Cadastrando...' : 'Cadastrar'}</Text>
           </TouchableOpacity>
 
+          <TouchableOpacity onPress={handleBackToLogin} style={styles.backLink}>
+            <Text style={styles.backLinkText}>Já tem conta? Entrar</Text>
+          </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -159,7 +160,7 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontWeight: '700',
     color: '#000',
-    marginBottom: 40,
+    marginBottom: 32,
     textAlign: 'center',
     letterSpacing: 1,
   },
@@ -184,18 +185,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#000',
   },
-  forgotPassword: {
-    fontSize: 12,
-    color: '#333',
-    textAlign: 'right',
-    marginBottom: 20,
-    textDecorationLine: 'underline',
-  },
   loginButton: {
     backgroundColor: '#22C55E',
     paddingVertical: 14,
     borderRadius: 6,
-    marginBottom: 20,
+    marginBottom: 16,
     elevation: 3,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -208,48 +202,13 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'center',
   },
-  dividerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 20,
+  backLink: {
+    marginTop: 8,
+    alignSelf: 'center',
   },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#ccc',
-  },
-  dividerText: {
-    fontSize: 12,
-    color: '#666',
-    marginHorizontal: 12,
-  },
-  registerButton: {
-    borderWidth: 1.5,
-    borderColor: '#22C55E',
-    paddingVertical: 12,
-    borderRadius: 6,
-  },
-  registerButtonText: {
-    color: '#22C55E',
-    fontSize: 16,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  testButton: {
-    backgroundColor: '#3B82F6',
-    paddingVertical: 12,
-    borderRadius: 6,
-    marginTop: 12,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-  },
-  testButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-    textAlign: 'center',
+  backLinkText: {
+    color: '#333',
+    fontSize: 14,
+    textDecorationLine: 'underline',
   },
 });
