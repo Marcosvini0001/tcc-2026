@@ -9,46 +9,30 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
-import { useAuthStore } from '../src/stores/authStore';
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { login } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert('Erro', 'Preencha todos os campos');
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      await login(email, password);
-      router.replace('/dashboard');
-    } catch (error) {
-      Alert.alert('Erro', 'Credenciais inválidas');
-    } finally {
-      setIsLoading(false);
-    }
+  const handleLogin = () => {
+    router.replace('/(tabs)');
   };
 
   const handleRegister = () => {
-    // Implementar navegação para tela de cadastro
     router.push('/register');
   };
 
   const handleForgotPassword = () => {
-    // Implementar navegação para tela de recuperação
     router.push('/forgot-password');
   };
 
+  const handleTest = () => {
+    router.push('/dashboard');
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -61,7 +45,7 @@ export default function LoginScreen() {
           {/* Logo */}
           <View style={styles.logoContainer}>
             <Image
-              source={require('@/assets/images/neuroxp-logo.svg')}
+              source={require('@/img/neuroxp.jpeg')}
               style={styles.logo}
               contentFit="contain"
             />
@@ -105,9 +89,8 @@ export default function LoginScreen() {
           <TouchableOpacity
             style={styles.loginButton}
             onPress={handleLogin}
-            activeOpacity={0.8}
-            disabled={isLoading}>
-            <Text style={styles.loginButtonText}>{isLoading ? 'Entrando...' : 'Entrar'}</Text>
+            activeOpacity={0.8}>
+            <Text style={styles.loginButtonText}>Entrar</Text>
           </TouchableOpacity>
 
           {/* Divider */}
@@ -125,6 +108,13 @@ export default function LoginScreen() {
             <Text style={styles.registerButtonText}>Cadastrar</Text>
           </TouchableOpacity>
 
+          {/* Test Button */}
+          <TouchableOpacity
+            style={styles.testButton}
+            onPress={handleTest}
+            activeOpacity={0.8}>
+            <Text style={styles.testButtonText}>TESTE</Text>
+          </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -134,7 +124,7 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f2f2f2',
+    backgroundColor: '#f0f0f0',
   },
   keyboardAvoidingView: {
     flex: 1,
@@ -167,16 +157,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 12,
-    paddingHorizontal: 14,
+    borderColor: '#333',
+    borderRadius: 8,
+    paddingHorizontal: 12,
     marginBottom: 16,
     backgroundColor: '#fff',
   },
   inputLabel: {
     fontSize: 18,
     marginRight: 10,
-    color: '#666',
   },
   input: {
     flex: 1,

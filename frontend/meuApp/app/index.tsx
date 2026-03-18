@@ -16,7 +16,7 @@ export default function WelcomeScreen() {
         {/* Logo */}
         <View style={styles.logoContainer}>
           <Image
-            source={require('@/assets/images/neuroxp-logo.svg')}
+            source={require('@/img/neuroxp.jpeg')}
             style={styles.logo}
             contentFit="contain"
           />

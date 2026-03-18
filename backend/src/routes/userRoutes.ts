@@ -1,9 +1,18 @@
 import { Router } from 'express';
-import { getProfile } from '../controllers/userController';
-import { authMiddleware } from '../middleware/authMiddleware';
+import {
+  createUser,
+  getAllUsers,
+  getUserById,
+  updateUser,
+  deleteUser,
+} from '../controllers/userController';
 
 const router = Router();
 
-router.get('/profile', authMiddleware, getProfile);
+router.post('/', createUser);
+router.get('/', getAllUsers);
+router.get('/:id', getUserById);
+router.put('/:id', updateUser);
+router.delete('/:id', deleteUser);
 
 export default router;
