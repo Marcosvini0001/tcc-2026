@@ -3,6 +3,7 @@ import {
   createUser,
   loginUser,
   getAllUsers,
+  getRanking,
   getUserById,
   updateUser,
   deleteUser,
@@ -15,6 +16,7 @@ const router = Router();
 router.post('/', createUser);
 router.post('/login', loginUser);
 router.get('/', getAllUsers);
+router.get('/ranking', getRanking);
 router.get('/:id', getUserById);
 router.put('/:id', updateUser);
 router.delete('/:id', deleteUser);

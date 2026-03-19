@@ -74,6 +74,54 @@ export const getAllUsers = async (req: Request, res: Response) => {
   }
 };
 
+export const getRanking = async (_req: Request, res: Response) => {
+  try {
+    const users = await User.findAll({
+      attributes: ['id', 'name'],
+      order: [['createdAt', 'ASC']],
+    });
+
+    const relations = await UserFriend.findAll({ attributes: ['userId'] });
+    const friendsCountMap = new Map<number, number>();
+
+    relations.forEach((relation) => {
+      const count = friendsCountMap.get(relation.userId) ?? 0;
+      friendsCountMap.set(relation.userId, count + 1);
+    });
+
+    const ranking = users
+      .map((user) => {
+        const friendsCount = friendsCountMap.get(user.id) ?? 0;
+        const points = friendsCount * 100;
+        const level = Math.max(1, Math.floor(points / 300) + 1);
+
+        return {
+          id: user.id,
+          name: user.name,
+          friendsCount,
+          points,
+          level,
+        };
+      })
+      .sort((a, b) => {
+        if (b.points !== a.points) {
+          return b.points - a.points;
+        }
+
+        return a.name.localeCompare(b.name);
+      })
+      .map((entry, index) => ({
+        ...entry,
+        rank: index + 1,
+      }));
+
+    return res.json(ranking);
+  } catch (error) {
+    console.error('Error fetching ranking:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
 export const getUserById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;

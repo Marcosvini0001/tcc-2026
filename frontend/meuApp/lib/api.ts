@@ -8,6 +8,15 @@ export interface ApiUser {
   friendCode: string;
 }
 
+export interface ApiRankingUser {
+  id: number;
+  name: string;
+  friendsCount: number;
+  points: number;
+  level: number;
+  rank: number;
+}
+
 const getBaseUrl = () => {
   if (Platform.OS === 'android') {
     return 'http://10.0.2.2:3000';
@@ -72,4 +81,8 @@ export async function apiAddFriendByCode(userId: number, friendCode: string): Pr
 
 export async function apiGetFriends(userId: number): Promise<ApiUser[]> {
   return request<ApiUser[]>(`/users/${userId}/friends`);
+}
+
+export async function apiGetRanking(): Promise<ApiRankingUser[]> {
+  return request<ApiRankingUser[]>('/users/ranking');
 }

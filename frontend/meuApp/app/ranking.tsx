@@ -1,59 +1,74 @@
 import React from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   StyleSheet,
   View,
   Text,
   TouchableOpacity,
   SafeAreaView,
-  ScrollView,
   FlatList,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
-
-interface Friend {
-  id: string;
-  rank: number;
-  name: string;
-  level: string;
-  points: number;
-  pointsGain: string;
-  avatar: string;
-}
+import { apiGetRanking, type ApiRankingUser } from '@/lib/api';
+import { getCurrentUser } from '@/lib/sessionStore';
 
 export default function RankingScreen() {
   const router = useRouter();
-  const [friends] = React.useState<Friend[]>([
-    { id: '1', rank: 1, name: 'João Silva', level: 'Nível 8', points: 1500, pointsGain: '+65', avatar: '👨' },
-    { id: '2', rank: 2, name: 'Mariana Silva', level: 'Nível 7', points: 1500, pointsGain: '+65', avatar: '👩' },
-    { id: '3', rank: 3, name: 'Jordana', level: 'Nível 6', points: 1500, pointsGain: '+65', avatar: '👩' },
-    { id: '4', rank: 4, name: 'Antônio Pereira', level: 'Nível 6', points: 1500, pointsGain: '+65', avatar: '👨' },
-    { id: '5', rank: 5, name: 'Vinicius Almeida', level: 'Nível 6', points: 1500, pointsGain: '+65', avatar: '👨' },
-  ]);
+  const [ranking, setRanking] = React.useState<ApiRankingUser[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const currentUser = getCurrentUser();
 
-  const renderFriend = ({ item }: { item: Friend }) => (
-    <View style={styles.friendCard}>
+  const loadRanking = React.useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await apiGetRanking();
+      setRanking(data);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Falha ao carregar ranking.';
+      Alert.alert('Erro', message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    void loadRanking();
+  }, [loadRanking]);
+
+  const renderFriend = ({ item }: { item: ApiRankingUser }) => {
+    const isCurrentUser = currentUser?.id === item.id;
+
+    return (
+      <View style={[styles.friendCard, isCurrentUser && styles.currentUserCard]}>
       <View style={styles.rankContainer}>
         <Text style={styles.rankText}>{item.rank}º</Text>
       </View>
-      <Text style={styles.avatar}>{item.avatar}</Text>
+      <Text style={styles.avatar}>👤</Text>
       <View style={styles.friendInfo}>
         <Text style={styles.friendName}>{item.name}</Text>
-        <Text style={styles.friendLevel}>{item.level}</Text>
+        <Text style={styles.friendLevel}>Nivel {item.level}</Text>
       </View>
       <View style={styles.pointsContainer}>
         <Text style={styles.starIcon}>⭐</Text>
         <Text style={styles.points}>{item.points}pts</Text>
       </View>
       <View style={styles.pointsGainContainer}>
-        <Text style={styles.pointsGain}>{item.pointsGain}</Text>
+        <Text style={styles.pointsGain}>{item.friendsCount} amigos</Text>
       </View>
     </View>
-  );
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <FlatList
+        data={ranking}
+        renderItem={renderFriend}
+        keyExtractor={(item) => String(item.id)}
+        ListHeaderComponent={
+          <>
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.logoContainer}>
@@ -68,23 +83,27 @@ export default function RankingScreen() {
 
         {/* List Header */}
         <View style={styles.listHeader}>
-          <Text style={styles.listTitle}>Lista de amigos</Text>
+          <Text style={styles.listTitle}>Ranking real (banco de dados)</Text>
         </View>
 
-        {/* Section Badge */}
-        <View style={styles.sectionBadge}>
-          <Text style={styles.sectionBadgeText}>Section 2</Text>
-        </View>
+            {loading && (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#22C55E" />
+                <Text style={styles.loadingText}>Carregando ranking...</Text>
+              </View>
+            )}
 
-        {/* Friends List */}
-        <View style={styles.friendsSection}>
-          <FlatList
-            data={friends}
-            renderItem={renderFriend}
-            keyExtractor={item => item.id}
-            scrollEnabled={false}
-          />
-        </View>
+            {!loading && ranking.length === 0 && (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>Ainda nao ha usuarios no ranking.</Text>
+              </View>
+            )}
+          </>
+        }
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+        ListFooterComponent={
+          <>
 
         {/* Test Button */}
         <TouchableOpacity
@@ -94,8 +113,14 @@ export default function RankingScreen() {
           <Text style={styles.testButtonText}>Ver perfil</Text>
         </TouchableOpacity>
 
+            <TouchableOpacity style={styles.refreshButton} onPress={() => void loadRanking()}>
+              <Text style={styles.refreshButtonText}>Atualizar ranking</Text>
+            </TouchableOpacity>
+
         <View style={{ height: 80 }} />
-      </ScrollView>
+          </>
+        }
+      />
 
       {/* Bottom Navigation */}
       <View style={styles.bottomNav}>
@@ -154,24 +179,30 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#000',
   },
-  sectionBadge: {
-    backgroundColor: '#555',
-    alignSelf: 'flex-start',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 4,
-    marginHorizontal: 20,
-    marginTop: 12,
-    marginBottom: 12,
-  },
-  sectionBadgeText: {
-    color: '#fff',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  friendsSection: {
+  listContent: {
     paddingHorizontal: 16,
     paddingBottom: 16,
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    marginTop: 20,
+    marginBottom: 12,
+  },
+  loadingText: {
+    marginTop: 10,
+    color: '#333',
+    fontSize: 13,
+  },
+  emptyContainer: {
+    backgroundColor: '#f8f8f8',
+    borderRadius: 10,
+    padding: 14,
+    marginTop: 16,
+  },
+  emptyText: {
+    color: '#333',
+    fontSize: 13,
+    textAlign: 'center',
   },
   friendCard: {
     backgroundColor: '#fff',
@@ -185,6 +216,10 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
+  },
+  currentUserCard: {
+    borderWidth: 1.5,
+    borderColor: '#22C55E',
   },
   rankContainer: {
     width: 40,
@@ -283,6 +318,19 @@ const styles = StyleSheet.create({
   testButtonText: {
     color: '#fff',
     fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  refreshButton: {
+    backgroundColor: '#111827',
+    paddingVertical: 12,
+    borderRadius: 6,
+    marginHorizontal: 20,
+    marginTop: 10,
+  },
+  refreshButtonText: {
+    color: '#fff',
+    fontSize: 14,
     fontWeight: '600',
     textAlign: 'center',
   },
