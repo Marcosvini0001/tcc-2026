@@ -7,6 +7,7 @@ class User extends Model {
   public email!: string;
   public password!: string;
   public cpf!: string;
+  public friendCode!: string;
 }
 
 User.init({
@@ -31,6 +32,11 @@ User.init({
   },
   cpf: {
     type: DataTypes.STRING(11),
+    allowNull: false,
+    unique: true,
+  },
+  friendCode: {
+    type: DataTypes.STRING(5),
     allowNull: false,
     unique: true,
   },

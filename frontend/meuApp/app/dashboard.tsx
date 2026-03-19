@@ -102,7 +102,7 @@ export default function DashboardScreen() {
           style={styles.testButton}
           onPress={() => router.push('/ranking')}
           activeOpacity={0.8}>
-          <Text style={styles.testButtonText}>TESTE</Text>
+          <Text style={styles.testButtonText}>Ver ranking</Text>
         </TouchableOpacity>
 
         <View style={{ height: 80 }} />
@@ -110,19 +110,19 @@ export default function DashboardScreen() {
 
       {/* Bottom Navigation */}
       <View style={styles.bottomNav}>
-        <TouchableOpacity style={styles.navItem} onPress={() => {}}>
+        <TouchableOpacity style={styles.navItem} onPress={() => router.push('/dashboard')}>
           <Text style={styles.navIcon}>🏠</Text>
           <Text style={styles.navLabel}>Home</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => {}}>
+        <TouchableOpacity style={styles.navItem} onPress={() => router.push('/dashboard')}>
           <Text style={styles.navIcon}>✓</Text>
           <Text style={styles.navLabel}>Tarefas</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => {}}>
+        <TouchableOpacity style={styles.navItem} onPress={() => router.push('/ranking')}>
           <Text style={styles.navIcon}>🏆</Text>
           <Text style={styles.navLabel}>Ranking</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => {}}>
+        <TouchableOpacity style={styles.navItem} onPress={() => router.push('/profile')}>
           <Text style={styles.navIcon}>👤</Text>
           <Text style={styles.navLabel}>Perfil</Text>
         </TouchableOpacity>

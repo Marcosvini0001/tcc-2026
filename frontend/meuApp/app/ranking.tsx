@@ -91,7 +91,7 @@ export default function RankingScreen() {
           style={styles.testButton}
           onPress={() => router.push('/profile')}
           activeOpacity={0.8}>
-          <Text style={styles.testButtonText}>TESTE</Text>
+          <Text style={styles.testButtonText}>Ver perfil</Text>
         </TouchableOpacity>
 
         <View style={{ height: 80 }} />
@@ -103,15 +103,15 @@ export default function RankingScreen() {
           <Text style={styles.navIcon}>🏠</Text>
           <Text style={styles.navLabel}>Home</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => {}}>
+        <TouchableOpacity style={styles.navItem} onPress={() => router.push('/dashboard')}>
           <Text style={styles.navIcon}>✓</Text>
           <Text style={styles.navLabel}>Tarefas</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => {}}>
+        <TouchableOpacity style={styles.navItem} onPress={() => router.push('/ranking')}>
           <Text style={styles.navIcon}>🏆</Text>
           <Text style={styles.navLabel}>Ranking</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => {}}>
+        <TouchableOpacity style={styles.navItem} onPress={() => router.push('/profile')}>
           <Text style={styles.navIcon}>👤</Text>
           <Text style={styles.navLabel}>Perfil</Text>
         </TouchableOpacity>

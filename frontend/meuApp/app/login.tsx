@@ -9,17 +9,38 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
+import { apiLogin } from '@/lib/api';
+import { setCurrentUser } from '@/lib/sessionStore';
 
 export default function LoginScreen() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = () => {
-    router.replace('/(tabs)');
+  const handleLogin = async () => {
+    if (!email.trim() || !password.trim()) {
+      Alert.alert('Campos obrigatorios', 'Preencha e-mail e senha para continuar.');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      const user = await apiLogin({ email: email.trim(), password: password.trim() });
+      setCurrentUser(user);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Falha ao entrar.';
+      Alert.alert('Erro no login', message);
+      return;
+    } finally {
+      setIsLoading(false);
+    }
+
+    router.replace('/dashboard');
   };
 
   const handleRegister = () => {
@@ -87,10 +108,11 @@ export default function LoginScreen() {
 
           {/* Login Button */}
           <TouchableOpacity
-            style={styles.loginButton}
+            style={[styles.loginButton, isLoading && styles.disabledButton]}
             onPress={handleLogin}
-            activeOpacity={0.8}>
-            <Text style={styles.loginButtonText}>Entrar</Text>
+            activeOpacity={0.8}
+            disabled={isLoading}>
+            <Text style={styles.loginButtonText}>{isLoading ? 'Entrando...' : 'Entrar'}</Text>
           </TouchableOpacity>
 
           {/* Divider */}
@@ -113,7 +135,7 @@ export default function LoginScreen() {
             style={styles.testButton}
             onPress={handleTest}
             activeOpacity={0.8}>
-            <Text style={styles.testButtonText}>TESTE</Text>
+            <Text style={styles.testButtonText}>Entrar sem conta</Text>
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -190,6 +212,9 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
+  },
+  disabledButton: {
+    opacity: 0.7,
   },
   loginButtonText: {
     color: '#fff',

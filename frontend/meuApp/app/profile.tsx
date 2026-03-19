@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  Alert,
   StyleSheet,
   View,
   Text,
@@ -7,9 +8,12 @@ import {
   SafeAreaView,
   ScrollView,
   FlatList,
+  TextInput,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
+import { apiAddFriendByCode, apiGetFriends } from '@/lib/api';
+import { getCurrentUser } from '@/lib/sessionStore';
 
 interface Achievement {
   id: string;
@@ -20,10 +24,61 @@ interface Achievement {
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const [friendCodeInput, setFriendCodeInput] = React.useState('');
+  const [currentUserName, setCurrentUserName] = React.useState('Joao Silva');
+  const [currentUserCode, setCurrentUserCode] = React.useState('1234');
+  const [friends, setFriends] = React.useState<string[]>([]);
+  const [isAddingFriend, setIsAddingFriend] = React.useState(false);
   const [achievements] = React.useState<Achievement[]>([
     { id: '1', icon: '🎤', title: 'Treinar durante 30 min', points: '+50' },
     { id: '2', icon: '🕐', title: 'Acordar antes das 7h', points: '+50' },
   ]);
+
+  React.useEffect(() => {
+    const user = getCurrentUser();
+    if (!user) {
+      return;
+    }
+
+    setCurrentUserName(user.name);
+    setCurrentUserCode(user.friendCode);
+
+    void (async () => {
+      try {
+        const fetchedFriends = await apiGetFriends(user.id);
+        setFriends(fetchedFriends.map((friend) => `${friend.name} (${friend.friendCode})`));
+      } catch (_error) {
+        Alert.alert('Erro', 'Nao foi possivel carregar sua lista de amigos.');
+      }
+    })();
+  }, []);
+
+  const handleAddFriend = async () => {
+    const user = getCurrentUser();
+    if (!user) {
+      Alert.alert('Sessao nao encontrada', 'Faca login para adicionar amigos.');
+      return;
+    }
+
+    if (!friendCodeInput.trim()) {
+      Alert.alert('Codigo obrigatorio', 'Digite o codigo do amigo.');
+      return;
+    }
+
+    try {
+      setIsAddingFriend(true);
+      const addedFriend = await apiAddFriendByCode(user.id, friendCodeInput.trim());
+      const fetchedFriends = await apiGetFriends(user.id);
+      setFriends(fetchedFriends.map((friend) => `${friend.name} (${friend.friendCode})`));
+      setFriendCodeInput('');
+      Alert.alert('Amigo adicionado', `${addedFriend.name} agora faz parte da sua lista.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Nao foi possivel adicionar amigo.';
+      Alert.alert('Erro', message);
+    } finally {
+      setIsAddingFriend(false);
+    }
+  };
 
   const renderAchievement = ({ item }: { item: Achievement }) => (
     <View style={styles.achievementCard}>
@@ -60,8 +115,37 @@ export default function ProfileScreen() {
           </View>
 
           {/* User Info */}
-          <Text style={styles.userName}>João Silva</Text>
+          <Text style={styles.userName}>{currentUserName}</Text>
           <Text style={styles.userLevel}>Nível 6</Text>
+
+          <Text style={styles.friendCodeLabel}>Seu codigo de amigo: {currentUserCode}</Text>
+
+          <View style={styles.addFriendContainer}>
+            <TextInput
+              style={styles.addFriendInput}
+              value={friendCodeInput}
+              onChangeText={setFriendCodeInput}
+              placeholder="Digite o codigo do amigo"
+              placeholderTextColor="#888"
+              keyboardType="number-pad"
+            />
+            <TouchableOpacity style={styles.addFriendButton} onPress={handleAddFriend}>
+              <Text style={styles.addFriendButtonText}>
+                {isAddingFriend ? 'Adicionando...' : 'Adicionar'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {friends.length > 0 && (
+            <View style={styles.friendsListContainer}>
+              <Text style={styles.friendsListTitle}>Meus amigos</Text>
+              {friends.map((friendName) => (
+                <Text key={friendName} style={styles.friendItemText}>
+                  {friendName}
+                </Text>
+              ))}
+            </View>
+          )}
 
           {/* Progress Bar */}
           <View style={styles.progressBarContainer}>
@@ -89,7 +173,7 @@ export default function ProfileScreen() {
           <Text style={styles.navIcon}>🏠</Text>
           <Text style={styles.navLabel}>Home</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => {}}>
+        <TouchableOpacity style={styles.navItem} onPress={() => router.push('/dashboard')}>
           <Text style={styles.navIcon}>✓</Text>
           <Text style={styles.navLabel}>Tarefas</Text>
         </TouchableOpacity>
@@ -97,7 +181,7 @@ export default function ProfileScreen() {
           <Text style={styles.navIcon}>🏆</Text>
           <Text style={styles.navLabel}>Ranking</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => {}}>
+        <TouchableOpacity style={styles.navItem} onPress={() => router.push('/profile')}>
           <Text style={styles.navIcon}>👤</Text>
           <Text style={styles.navLabel}>Perfil</Text>
         </TouchableOpacity>
@@ -164,7 +248,60 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#333',
-    marginBottom: 20,
+    marginBottom: 10,
+  },
+  friendCodeLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#111',
+    marginBottom: 12,
+  },
+  addFriendContainer: {
+    width: '82%',
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 10,
+  },
+  addFriendInput: {
+    flex: 1,
+    height: 40,
+    borderWidth: 1,
+    borderColor: '#666',
+    borderRadius: 8,
+    backgroundColor: '#fff',
+    paddingHorizontal: 10,
+    color: '#000',
+  },
+  addFriendButton: {
+    backgroundColor: '#22C55E',
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addFriendButtonText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 12,
+  },
+  friendsListContainer: {
+    width: '82%',
+    backgroundColor: '#f8f8f8',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginBottom: 14,
+  },
+  friendsListTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#222',
+    marginBottom: 4,
+  },
+  friendItemText: {
+    fontSize: 12,
+    color: '#333',
+    marginBottom: 2,
   },
   progressBarContainer: {
     width: '70%',
