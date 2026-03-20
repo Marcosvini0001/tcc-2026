@@ -20,9 +20,12 @@ export interface ApiRankingUser {
 export interface ApiTask {
   id: number;
   userId: number;
+  activity: string;
   photoUrl: string;
+  points: number;
   completed: boolean;
   analysis?: string | null;
+  scheduledFor?: string | null;
 }
 
 const getBaseUrl = () => {
@@ -34,6 +37,12 @@ const getBaseUrl = () => {
 };
 
 const API_BASE_URL = getBaseUrl();
+
+const ensureValidUserId = (userId: number) => {
+  if (typeof userId !== 'number' || Number.isNaN(userId)) {
+    throw new Error('Usuario invalido');
+  }
+};
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -78,7 +87,13 @@ export async function apiLogin(payload: { email: string; password: string }): Pr
   });
 }
 
+export async function apiGetUserById(userId: number): Promise<ApiUser> {
+  ensureValidUserId(userId);
+  return request<ApiUser>(`/users/${userId}`);
+}
+
 export async function apiAddFriendByCode(userId: number, friendCode: string): Promise<ApiUser> {
+  ensureValidUserId(userId);
   const result = await request<{ friend: ApiUser }>(`/users/${userId}/friends`, {
     method: 'POST',
     body: JSON.stringify({ friendCode }),
@@ -88,6 +103,7 @@ export async function apiAddFriendByCode(userId: number, friendCode: string): Pr
 }
 
 export async function apiGetFriends(userId: number): Promise<ApiUser[]> {
+  ensureValidUserId(userId);
   return request<ApiUser[]>(`/users/${userId}/friends`);
 }
 
@@ -95,24 +111,36 @@ export async function apiGetRanking(): Promise<ApiRankingUser[]> {
   return request<ApiRankingUser[]>('/users/ranking');
 }
 
-export async function apiCreateTask(userId: number, photoUrl: string): Promise<ApiTask> {
+export async function apiCreateTask(
+  userId: number,
+  payload: { photoUrl: string; activity: string; scheduledFor?: string }
+): Promise<ApiTask> {
+  ensureValidUserId(userId);
   return request<ApiTask>(`/users/${userId}/tasks`, {
     method: 'POST',
-    body: JSON.stringify({ photoUrl }),
+    body: JSON.stringify(payload),
   });
 }
 
 export async function apiGetTasks(userId: number): Promise<ApiTask[]> {
+  ensureValidUserId(userId);
   return request<ApiTask[]>(`/users/${userId}/tasks`);
 }
 
 export async function apiCompleteTask(userId: number, taskId: number): Promise<ApiTask> {
+  ensureValidUserId(userId);
   return request<ApiTask>(`/users/${userId}/tasks/${taskId}/complete`, {
     method: 'PATCH',
   });
 }
 
-export async function apiUploadTaskPhoto(userId: number, uri: string): Promise<ApiTask> {
+export async function apiUploadTaskPhoto(
+  userId: number,
+  uri: string,
+  activity: string,
+  scheduledFor?: string
+): Promise<ApiTask> {
+  ensureValidUserId(userId);
   const formData = new FormData();
   const extension = uri.split('.').pop()?.toLowerCase();
   const type = extension === 'png' ? 'image/png' : 'image/jpeg';
@@ -122,6 +150,10 @@ export async function apiUploadTaskPhoto(userId: number, uri: string): Promise<A
     name: `task-${Date.now()}.${extension || 'jpg'}`,
     type,
   } as any);
+  formData.append('activity', activity);
+  if (scheduledFor) {
+    formData.append('scheduledFor', scheduledFor);
+  }
 
   const response = await fetch(`${API_BASE_URL}/users/${userId}/tasks/upload`, {
     method: 'POST',
@@ -144,6 +176,7 @@ export async function apiUploadTaskPhoto(userId: number, uri: string): Promise<A
 }
 
 export async function apiAnalyzeTaskPhoto(userId: number, taskId: number): Promise<ApiTask> {
+  ensureValidUserId(userId);
   const result = await request<{ task: ApiTask }>(`/users/${userId}/tasks/${taskId}/analyze`, {
     method: 'POST',
   });

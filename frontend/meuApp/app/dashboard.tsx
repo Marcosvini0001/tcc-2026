@@ -5,6 +5,7 @@ import {
   StyleSheet,
   View,
   Text,
+  TextInput,
   TouchableOpacity,
   SafeAreaView,
   FlatList,
@@ -26,6 +27,8 @@ export default function DashboardScreen() {
   const router = useRouter();
   const [tasks, setTasks] = React.useState<ApiTask[]>([]);
   const [selectedPhotoUri, setSelectedPhotoUri] = React.useState<string | null>(null);
+  const [activityName, setActivityName] = React.useState('');
+  const [scheduledForInput, setScheduledForInput] = React.useState('');
   const [loadingTasks, setLoadingTasks] = React.useState(true);
   const [savingTask, setSavingTask] = React.useState(false);
   const [analyzingTaskId, setAnalyzingTaskId] = React.useState<number | null>(null);
@@ -62,6 +65,29 @@ export default function DashboardScreen() {
 
   const completedCount = tasks.filter((task) => task.completed).length;
   const progressPercent = tasks.length > 0 ? Math.round((completedCount / tasks.length) * 100) : 0;
+  const plannedTasks = tasks.filter((task) => !task.completed);
+  const completedTasks = tasks.filter((task) => task.completed);
+
+  type TaskListItem =
+    | { type: 'section'; id: string; title: string; subtitle: string }
+    | { type: 'task'; id: string; task: ApiTask };
+
+  const listItems: TaskListItem[] = [
+    {
+      type: 'section',
+      id: 'planned-section',
+      title: 'Atividades programadas',
+      subtitle: `${plannedTasks.length} pendentes`,
+    },
+    ...plannedTasks.map((task) => ({ type: 'task' as const, id: `planned-${task.id}`, task })),
+    {
+      type: 'section',
+      id: 'completed-section',
+      title: 'Atividades feitas',
+      subtitle: `${completedTasks.length} concluidas`,
+    },
+    ...completedTasks.map((task) => ({ type: 'task' as const, id: `completed-${task.id}`, task })),
+  ];
 
   const handlePickFromGallery = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -109,10 +135,22 @@ export default function DashboardScreen() {
       return;
     }
 
+    if (!activityName.trim()) {
+      Alert.alert('Atividade obrigatoria', 'Descreva a atividade para cadastrar.');
+      return;
+    }
+
     try {
       setSavingTask(true);
-      await apiUploadTaskPhoto(currentUser.id, selectedPhotoUri);
+      await apiUploadTaskPhoto(
+        currentUser.id,
+        selectedPhotoUri,
+        activityName.trim(),
+        scheduledForInput.trim() || undefined
+      );
       setSelectedPhotoUri(null);
+      setActivityName('');
+      setScheduledForInput('');
       await loadTasks();
       Alert.alert('Tarefa criada', 'Tarefa por foto cadastrada com sucesso.');
     } catch (error) {
@@ -159,12 +197,26 @@ export default function DashboardScreen() {
     }
   };
 
+  const formatScheduledFor = (scheduledFor?: string | null) => {
+    if (!scheduledFor) {
+      return 'Sem data programada';
+    }
+
+    const parsedDate = new Date(scheduledFor);
+    if (Number.isNaN(parsedDate.getTime())) {
+      return `Programada: ${scheduledFor}`;
+    }
+
+    return `Programada: ${parsedDate.toLocaleDateString('pt-BR')}`;
+  };
+
   const renderTask = ({ item }: { item: ApiTask }) => (
     <View style={styles.taskCard}>
       <Image source={{ uri: item.photoUrl }} style={styles.taskPhoto} contentFit="cover" />
       <View style={styles.taskContent}>
-        <Text style={styles.taskTitle}>Tarefa #{item.id}</Text>
-        <Text style={styles.taskPoints}>{item.completed ? 'Concluida' : 'Pendente'}</Text>
+        <Text style={styles.taskTitle}>{item.activity}</Text>
+        <Text style={styles.taskPoints}>{item.completed ? 'Concluida' : 'Pendente'} • +{item.points} pts</Text>
+        <Text style={styles.taskMeta}>{formatScheduledFor(item.scheduledFor)}</Text>
         {item.analysis ? <Text style={styles.analysisText}>{item.analysis}</Text> : null}
 
         <TouchableOpacity
@@ -191,12 +243,25 @@ export default function DashboardScreen() {
     </View>
   );
 
+  const renderListItem = ({ item }: { item: TaskListItem }) => {
+    if (item.type === 'section') {
+      return (
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionHeaderTitle}>{item.title}</Text>
+          <Text style={styles.sectionHeaderSubtitle}>{item.subtitle}</Text>
+        </View>
+      );
+    }
+
+    return renderTask({ item: item.task });
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <FlatList
-        data={tasks}
-        renderItem={renderTask}
-        keyExtractor={(item) => String(item.id)}
+        data={listItems}
+        renderItem={renderListItem}
+        keyExtractor={(item) => item.id}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={
@@ -226,7 +291,24 @@ export default function DashboardScreen() {
 
         {/* Create Task */}
         <View style={styles.createTaskSection}>
-          <Text style={styles.createTaskTitle}>Cadastrar tarefa por foto</Text>
+          <Text style={styles.createTaskTitle}>Cadastrar atividade (foto + descricao)</Text>
+
+          <TextInput
+            value={activityName}
+            onChangeText={setActivityName}
+            placeholder="Ex: Caminhada de 30 minutos"
+            placeholderTextColor="#888"
+            style={styles.textInput}
+          />
+
+          <TextInput
+            value={scheduledForInput}
+            onChangeText={setScheduledForInput}
+            placeholder="Data programada (AAAA-MM-DD) opcional"
+            placeholderTextColor="#888"
+            style={styles.textInput}
+            autoCapitalize="none"
+          />
 
           {selectedPhotoUri ? (
             <Image source={{ uri: selectedPhotoUri }} style={styles.previewPhoto} contentFit="cover" />
@@ -380,6 +462,17 @@ const styles = StyleSheet.create({
     color: '#111',
     marginBottom: 10,
   },
+  textInput: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#9ca3af',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    fontSize: 13,
+    color: '#111',
+    marginBottom: 10,
+  },
   previewPhoto: {
     width: '100%',
     height: 180,
@@ -452,6 +545,21 @@ const styles = StyleSheet.create({
     color: '#444',
     fontSize: 13,
   },
+  sectionHeader: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  sectionHeaderTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  sectionHeaderSubtitle: {
+    fontSize: 12,
+    color: '#4b5563',
+    marginTop: 2,
+  },
   taskCard: {
     backgroundColor: '#fff',
     borderRadius: 12,
@@ -486,6 +594,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#22C55E',
+  },
+  taskMeta: {
+    fontSize: 11,
+    color: '#6b7280',
+    marginTop: 2,
   },
   analysisText: {
     fontSize: 12,

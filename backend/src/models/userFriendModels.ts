@@ -2,9 +2,9 @@ import { DataTypes, Model } from 'sequelize';
 import sequelize from '../config/database';
 
 class UserFriend extends Model {
-  public id!: number;
-  public userId!: number;
-  public friendId!: number;
+  declare id: number;
+  declare userId: number;
+  declare friendId: number;
 }
 
 UserFriend.init(

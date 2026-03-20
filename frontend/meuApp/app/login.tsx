@@ -21,10 +21,24 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [emailError, setEmailError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [formError, setFormError] = useState('');
 
   const handleLogin = async () => {
+    setEmailError('');
+    setPasswordError('');
+    setFormError('');
+
     if (!email.trim() || !password.trim()) {
-      Alert.alert('Campos obrigatorios', 'Preencha e-mail e senha para continuar.');
+      if (!email.trim()) {
+        setEmailError('E-mail obrigatorio');
+      }
+
+      if (!password.trim()) {
+        setPasswordError('Senha obrigatoria');
+      }
+
       return;
     }
 
@@ -34,7 +48,15 @@ export default function LoginScreen() {
       await setCurrentUser(user);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Falha ao entrar.';
-      Alert.alert('Erro no login', message);
+
+      if (message.toLowerCase().includes('email nao cadastrado')) {
+        setEmailError('E-mail nao cadastrado');
+      } else if (message.toLowerCase().includes('senha incorreta')) {
+        setPasswordError('Senha incorreta');
+      } else {
+        setFormError(message);
+      }
+
       return;
     } finally {
       setIsLoading(false);
@@ -49,10 +71,6 @@ export default function LoginScreen() {
 
   const handleForgotPassword = () => {
     router.push('/forgot-password');
-  };
-
-  const handleTest = () => {
-    router.push('/dashboard');
   };
 
   return (
@@ -84,9 +102,14 @@ export default function LoginScreen() {
               placeholderTextColor="#999"
               keyboardType="email-address"
               value={email}
-              onChangeText={setEmail}
+              onChangeText={(value) => {
+                setEmail(value);
+                setEmailError('');
+                setFormError('');
+              }}
             />
           </View>
+          {emailError ? <Text style={styles.errorText}>{emailError}</Text> : null}
 
           {/* Password Input */}
           <View style={styles.inputContainer}>
@@ -97,9 +120,15 @@ export default function LoginScreen() {
               placeholderTextColor="#999"
               secureTextEntry
               value={password}
-              onChangeText={setPassword}
+              onChangeText={(value) => {
+                setPassword(value);
+                setPasswordError('');
+                setFormError('');
+              }}
             />
           </View>
+          {passwordError ? <Text style={styles.errorText}>{passwordError}</Text> : null}
+          {formError ? <Text style={styles.errorText}>{formError}</Text> : null}
 
           {/* Forgot Password Link */}
           <TouchableOpacity onPress={handleForgotPassword}>
@@ -128,14 +157,6 @@ export default function LoginScreen() {
             onPress={handleRegister}
             activeOpacity={0.8}>
             <Text style={styles.registerButtonText}>Cadastrar</Text>
-          </TouchableOpacity>
-
-          {/* Test Button */}
-          <TouchableOpacity
-            style={styles.testButton}
-            onPress={handleTest}
-            activeOpacity={0.8}>
-            <Text style={styles.testButtonText}>Entrar sem conta</Text>
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -195,6 +216,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#000',
   },
+  errorText: {
+    fontSize: 12,
+    color: '#DC2626',
+    marginTop: -8,
+    marginBottom: 10,
+    marginLeft: 2,
+    fontWeight: '600',
+  },
   forgotPassword: {
     fontSize: 12,
     color: '#333',
@@ -245,23 +274,6 @@ const styles = StyleSheet.create({
   },
   registerButtonText: {
     color: '#22C55E',
-    fontSize: 16,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  testButton: {
-    backgroundColor: '#3B82F6',
-    paddingVertical: 12,
-    borderRadius: 6,
-    marginTop: 12,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-  },
-  testButtonText: {
-    color: '#fff',
     fontSize: 16,
     fontWeight: '600',
     textAlign: 'center',

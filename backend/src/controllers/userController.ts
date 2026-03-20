@@ -6,25 +6,71 @@ import User from '../models/userModels';
 import UserFriend from '../models/userFriendModels';
 import Task from '../models/taskModels';
 
-const sanitizeUser = (user: User) => ({
-  id: user.id,
-  name: user.name,
-  email: user.email,
-  cpf: user.cpf,
-  friendCode: user.friendCode,
-  createdAt: user.get('createdAt'),
-  updatedAt: user.get('updatedAt'),
-});
+const sanitizeUser = (user: User) => {
+  const raw = user.toJSON() as Record<string, unknown>;
 
-const sanitizeTask = (task: Task) => ({
-  id: task.id,
-  userId: task.userId,
-  photoUrl: task.photoUrl,
-  completed: task.completed,
-  analysis: task.get('analysis') as string | null,
-  createdAt: task.get('createdAt'),
-  updatedAt: task.get('updatedAt'),
-});
+  return {
+    id: Number(raw.id),
+    name: String(raw.name ?? ''),
+    email: String(raw.email ?? ''),
+    cpf: String(raw.cpf ?? ''),
+    friendCode: String(raw.friendCode ?? ''),
+    createdAt: raw.createdAt,
+    updatedAt: raw.updatedAt,
+  };
+};
+
+const sanitizeTask = (task: Task) => {
+  const raw = task.toJSON() as Record<string, unknown>;
+
+  return {
+    id: Number(raw.id),
+    userId: Number(raw.userId),
+    activity: String(raw.activity ?? ''),
+    photoUrl: String(raw.photoUrl ?? ''),
+    points: Number(raw.points ?? 0),
+    completed: Boolean(raw.completed),
+    analysis: (raw.analysis as string | null) ?? null,
+    scheduledFor: (raw.scheduledFor as Date | null) ?? null,
+    createdAt: raw.createdAt,
+    updatedAt: raw.updatedAt,
+  };
+};
+
+const getActivityPoints = (activity: string) => {
+  const normalized = activity.toLowerCase();
+
+  const highValueKeywords = [
+    'estudar',
+    'curso',
+    'academia',
+    'treino',
+    'corrida',
+    'projeto',
+    'trabalho',
+    'leitura',
+    'ingles',
+    'programacao',
+  ];
+
+  const mediumValueKeywords = ['organizar', 'limpar', 'mercado', 'planejar', 'cozinhar', 'caminhada'];
+
+  const lowValueKeywords = ['scroll', 'rede social', 'tv', 'serie', 'jogo casual', 'meme'];
+
+  if (highValueKeywords.some((keyword) => normalized.includes(keyword))) {
+    return 120;
+  }
+
+  if (mediumValueKeywords.some((keyword) => normalized.includes(keyword))) {
+    return 60;
+  }
+
+  if (lowValueKeywords.some((keyword) => normalized.includes(keyword))) {
+    return 15;
+  }
+
+  return 40;
+};
 
 const getMimeTypeByExtension = (filename: string) => {
   const ext = path.extname(filename).toLowerCase();
@@ -56,11 +102,66 @@ export const createUser = async (req: Request, res: Response) => {
       return res.status(400).json({ message: 'name, email, password and cpf are required' });
     }
 
+    const existingEmail = await User.findOne({ where: { email } });
+    if (existingEmail) {
+      return res.status(409).json({ message: 'email ja cadastrado' });
+    }
+
+    const existingCpf = await User.findOne({ where: { cpf } });
+    if (existingCpf) {
+      return res.status(409).json({ message: 'cpf ja cadastrado' });
+    }
+
     const friendCode = await generateFriendCode();
     const user = await User.create({ name, email, password, cpf, friendCode });
-    return res.status(201).json(sanitizeUser(user));
+    const createdUser = await User.findByPk((user.get('id') as number) || 0);
+
+    if (!createdUser) {
+      return res.status(500).json({ message: 'Falha ao carregar usuario criado' });
+    }
+
+    return res.status(201).json(sanitizeUser(createdUser));
   } catch (error) {
     console.error('Error creating user:', error);
+    const maybeSequelizeError = error as {
+      name?: string;
+      message?: string;
+      original?: { code?: string; sqlMessage?: string };
+      errors?: Array<{ path?: string }>;
+    };
+    if (maybeSequelizeError.name === 'SequelizeUniqueConstraintError') {
+      const duplicateField = maybeSequelizeError.errors?.[0]?.path;
+      if (duplicateField === 'email') {
+        return res.status(409).json({ message: 'email ja cadastrado' });
+      }
+
+      if (duplicateField === 'cpf') {
+        return res.status(409).json({ message: 'cpf ja cadastrado' });
+      }
+
+      return res.status(409).json({ message: 'registro duplicado' });
+    }
+
+    const sqlDuplicateMessage =
+      maybeSequelizeError.original?.sqlMessage?.toLowerCase() ||
+      maybeSequelizeError.message?.toLowerCase() ||
+      '';
+
+    if (
+      maybeSequelizeError.original?.code === 'ER_DUP_ENTRY' ||
+      sqlDuplicateMessage.includes('duplicate entry')
+    ) {
+      if (sqlDuplicateMessage.includes('cpf')) {
+        return res.status(409).json({ message: 'cpf ja cadastrado' });
+      }
+
+      if (sqlDuplicateMessage.includes('email')) {
+        return res.status(409).json({ message: 'email ja cadastrado' });
+      }
+
+      return res.status(409).json({ message: 'registro duplicado' });
+    }
+
     return res.status(500).json({ message: 'Internal server error' });
   }
 };
@@ -73,12 +174,17 @@ export const loginUser = async (req: Request, res: Response) => {
       return res.status(400).json({ message: 'email and password are required' });
     }
 
-    const user = await User.findOne({ where: { email, password } });
+    const user = await User.findOne({ where: { email } });
     if (!user) {
-      return res.status(401).json({ message: 'Invalid credentials' });
+      return res.status(404).json({ message: 'email nao cadastrado' });
     }
 
-    return res.json(sanitizeUser(user));
+    const authenticatedUser = await User.findOne({ where: { email, password } });
+    if (!authenticatedUser) {
+      return res.status(401).json({ message: 'senha incorreta' });
+    }
+
+    return res.json(sanitizeUser(authenticatedUser));
   } catch (error) {
     console.error('Error logging in user:', error);
     return res.status(500).json({ message: 'Internal server error' });
@@ -112,13 +218,14 @@ export const getRanking = async (_req: Request, res: Response) => {
 
     const ranking = users
       .map((user) => {
-        const friendsCount = friendsCountMap.get(user.id) ?? 0;
+        const userId = user.get('id') as number;
+        const friendsCount = friendsCountMap.get(userId) ?? 0;
         const points = friendsCount * 100;
         const level = Math.max(1, Math.floor(points / 300) + 1);
 
         return {
-          id: user.id,
-          name: user.name,
+          id: userId,
+          name: user.get('name') as string,
           friendsCount,
           points,
           level,
@@ -201,15 +308,18 @@ export const addFriendByCode = async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'Friend code not found' });
     }
 
-    if (friend.id === user.id) {
+    const userId = user.get('id') as number;
+    const friendId = friend.get('id') as number;
+
+    if (friendId === userId) {
       return res.status(400).json({ message: 'Cannot add yourself as friend' });
     }
 
     const existingRelation = await UserFriend.findOne({
       where: {
         [Op.or]: [
-          { userId: user.id, friendId: friend.id },
-          { userId: friend.id, friendId: user.id },
+          { userId, friendId },
+          { userId: friendId, friendId: userId },
         ],
       },
     });
@@ -218,8 +328,8 @@ export const addFriendByCode = async (req: Request, res: Response) => {
       return res.status(409).json({ message: 'Users are already friends' });
     }
 
-    await UserFriend.create({ userId: user.id, friendId: friend.id });
-    await UserFriend.create({ userId: friend.id, friendId: user.id });
+    await UserFriend.create({ userId, friendId });
+    await UserFriend.create({ userId: friendId, friendId: userId });
 
     return res.status(201).json({
       message: 'Friend added successfully',
@@ -240,8 +350,9 @@ export const getUserFriends = async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    const relations = await UserFriend.findAll({ where: { userId: user.id } });
-    const friendIds = relations.map((relation) => relation.friendId);
+    const userId = user.get('id') as number;
+    const relations = await UserFriend.findAll({ where: { userId } });
+    const friendIds = relations.map((relation) => relation.get('friendId') as number);
 
     if (friendIds.length === 0) {
       return res.json([]);
@@ -258,10 +369,14 @@ export const getUserFriends = async (req: Request, res: Response) => {
 export const createTask = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { photoUrl } = req.body;
+    const { photoUrl, activity, scheduledFor } = req.body;
 
     if (!photoUrl) {
       return res.status(400).json({ message: 'photoUrl is required' });
+    }
+
+    if (!activity) {
+      return res.status(400).json({ message: 'activity is required' });
     }
 
     const user = await User.findByPk(id as string);
@@ -270,9 +385,12 @@ export const createTask = async (req: Request, res: Response) => {
     }
 
     const task = await Task.create({
-      userId: user.id,
+      userId: user.get('id') as number,
+      activity,
       photoUrl,
+      points: getActivityPoints(activity),
       completed: false,
+      scheduledFor: scheduledFor ? new Date(scheduledFor) : null,
     });
 
     return res.status(201).json(sanitizeTask(task));
@@ -286,9 +404,15 @@ export const createTaskByUpload = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const file = req.file;
+    const activity = String(req.body.activity ?? '').trim();
+    const scheduledFor = String(req.body.scheduledFor ?? '').trim();
 
     if (!file) {
       return res.status(400).json({ message: 'photo file is required' });
+    }
+
+    if (!activity) {
+      return res.status(400).json({ message: 'activity is required' });
     }
 
     const user = await User.findByPk(id as string);
@@ -300,9 +424,12 @@ export const createTaskByUpload = async (req: Request, res: Response) => {
     const photoUrl = `${baseUrl}/uploads/${file.filename}`;
 
     const task = await Task.create({
-      userId: user.id,
+      userId: user.get('id') as number,
+      activity,
       photoUrl,
+      points: getActivityPoints(activity),
       completed: false,
+      scheduledFor: scheduledFor ? new Date(scheduledFor) : null,
     });
 
     return res.status(201).json(sanitizeTask(task));
@@ -322,7 +449,7 @@ export const getUserTasks = async (req: Request, res: Response) => {
     }
 
     const tasks = await Task.findAll({
-      where: { userId: user.id },
+      where: { userId: user.get('id') as number },
       order: [['createdAt', 'DESC']],
     });
 
@@ -342,12 +469,12 @@ export const completeTask = async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    const task = await Task.findOne({ where: { id: taskId, userId: user.id } });
+    const task = await Task.findOne({ where: { id: taskId, userId: user.get('id') as number } });
     if (!task) {
       return res.status(404).json({ message: 'Task not found' });
     }
 
-    task.completed = true;
+    task.set('completed', true);
     await task.save();
 
     return res.json(sanitizeTask(task));
@@ -366,7 +493,7 @@ export const analyzeTaskPhoto = async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    const task = await Task.findOne({ where: { id: taskId, userId: user.id } });
+    const task = await Task.findOne({ where: { id: taskId, userId: user.get('id') as number } });
     if (!task) {
       return res.status(404).json({ message: 'Task not found' });
     }
@@ -378,7 +505,7 @@ export const analyzeTaskPhoto = async (req: Request, res: Response) => {
       });
     }
 
-    const filename = path.basename(task.photoUrl);
+    const filename = path.basename(task.get('photoUrl') as string);
     const localImagePath = path.resolve(process.cwd(), 'uploads', filename);
     const imageBuffer = await fs.readFile(localImagePath);
     const base64Image = imageBuffer.toString('base64');

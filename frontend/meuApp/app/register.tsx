@@ -22,10 +22,62 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState('');
   const [cpf, setCpf] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [nameError, setNameError] = useState('');
+  const [emailError, setEmailError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [cpfError, setCpfError] = useState('');
+  const [formError, setFormError] = useState('');
+
+  const getPasswordLevel = (value: string) => {
+    let score = 0;
+
+    if (value.length >= 8) score += 1;
+    if (/[A-Z]/.test(value) && /[a-z]/.test(value)) score += 1;
+    if (/\d/.test(value)) score += 1;
+    if (/[^A-Za-z0-9]/.test(value)) score += 1;
+
+    if (score <= 1) return 'fraca';
+    if (score <= 3) return 'media';
+    return 'forte';
+  };
+
+  const getPasswordScore = (value: string) => {
+    let score = 0;
+    if (value.length >= 8) score += 1;
+    if (/[A-Z]/.test(value) && /[a-z]/.test(value)) score += 1;
+    if (/\d/.test(value)) score += 1;
+    if (/[^A-Za-z0-9]/.test(value)) score += 1;
+    return score;
+  };
+
+  const passwordLevel = getPasswordLevel(password);
+  const passwordScore = getPasswordScore(password);
+  const passwordBarWidth = `${(passwordScore / 4) * 100}%` as `${number}%`;
+  const passwordBarColor =
+    passwordLevel === 'forte' ? '#16A34A' : passwordLevel === 'media' ? '#F59E0B' : '#DC2626';
 
   const handleRegister = async () => {
+    setNameError('');
+    setEmailError('');
+    setPasswordError('');
+    setCpfError('');
+    setFormError('');
+
     if (!name.trim() || !email.trim() || !password.trim() || !cpf.trim()) {
-      Alert.alert('Campos obrigatorios', 'Preencha nome, e-mail, senha e CPF.');
+      if (!name.trim()) setNameError('Nome obrigatorio');
+      if (!email.trim()) setEmailError('E-mail obrigatorio');
+      if (!password.trim()) setPasswordError('Senha obrigatoria');
+      if (!cpf.trim()) setCpfError('CPF obrigatorio');
+      return;
+    }
+
+    if (password.length < 8) {
+      setPasswordError('A senha deve ter no minimo 8 caracteres');
+      return;
+    }
+
+    if (passwordLevel === 'fraca') {
+      setPasswordError('Senha fraca: use letras maiusculas, numeros e simbolos');
       return;
     }
 
@@ -44,7 +96,15 @@ export default function RegisterScreen() {
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Nao foi possivel cadastrar.';
-      Alert.alert('Erro no cadastro', message);
+
+      if (message.toLowerCase().includes('email ja cadastrado')) {
+        setEmailError('E-mail ja cadastrado');
+      } else if (message.toLowerCase().includes('cpf ja cadastrado')) {
+        setCpfError('CPF ja cadastrado');
+      } else {
+        setFormError(message);
+      }
+
       return;
     } finally {
       setIsLoading(false);
@@ -68,9 +128,14 @@ export default function RegisterScreen() {
               placeholder="Seu nome"
               placeholderTextColor="#999"
               value={name}
-              onChangeText={setName}
+              onChangeText={(value) => {
+                setName(value);
+                setNameError('');
+                setFormError('');
+              }}
             />
           </View>
+          {nameError ? <Text style={styles.errorText}>{nameError}</Text> : null}
 
           <View style={styles.inputContainer}>
             <Text style={styles.inputLabel}>E-mail</Text>
@@ -81,9 +146,14 @@ export default function RegisterScreen() {
               keyboardType="email-address"
               autoCapitalize="none"
               value={email}
-              onChangeText={setEmail}
+              onChangeText={(value) => {
+                setEmail(value);
+                setEmailError('');
+                setFormError('');
+              }}
             />
           </View>
+          {emailError ? <Text style={styles.errorText}>{emailError}</Text> : null}
 
           <View style={styles.inputContainer}>
             <Text style={styles.inputLabel}>Senha</Text>
@@ -93,9 +163,26 @@ export default function RegisterScreen() {
               placeholderTextColor="#999"
               secureTextEntry
               value={password}
-              onChangeText={setPassword}
+              onChangeText={(value) => {
+                setPassword(value);
+                setPasswordError('');
+                setFormError('');
+              }}
             />
           </View>
+          <Text style={styles.passwordLevelText}>Nivel da senha: {passwordLevel}</Text>
+          <View style={styles.passwordBarTrack}>
+            <View
+              style={[
+                styles.passwordBarFill,
+                {
+                  width: passwordBarWidth,
+                  backgroundColor: password.length ? passwordBarColor : '#d1d5db',
+                },
+              ]}
+            />
+          </View>
+          {passwordError ? <Text style={styles.errorText}>{passwordError}</Text> : null}
 
           <View style={styles.inputContainer}>
             <Text style={styles.inputLabel}>CPF</Text>
@@ -105,9 +192,15 @@ export default function RegisterScreen() {
               placeholderTextColor="#999"
               keyboardType="number-pad"
               value={cpf}
-              onChangeText={setCpf}
+              onChangeText={(value) => {
+                setCpf(value);
+                setCpfError('');
+                setFormError('');
+              }}
             />
           </View>
+          {cpfError ? <Text style={styles.errorText}>{cpfError}</Text> : null}
+          {formError ? <Text style={styles.errorText}>{formError}</Text> : null}
 
           <TouchableOpacity
             style={[styles.primaryButton, isLoading && styles.disabledButton]}
@@ -165,6 +258,32 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     color: '#000',
     fontSize: 14,
+  },
+  passwordLevelText: {
+    fontSize: 12,
+    color: '#4B5563',
+    marginTop: -6,
+    marginBottom: 6,
+    fontWeight: '600',
+  },
+  passwordBarTrack: {
+    height: 6,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 999,
+    overflow: 'hidden',
+    marginBottom: 10,
+  },
+  passwordBarFill: {
+    height: '100%',
+    borderRadius: 999,
+  },
+  errorText: {
+    fontSize: 12,
+    color: '#DC2626',
+    marginTop: -8,
+    marginBottom: 10,
+    marginLeft: 2,
+    fontWeight: '600',
   },
   primaryButton: {
     backgroundColor: '#22C55E',

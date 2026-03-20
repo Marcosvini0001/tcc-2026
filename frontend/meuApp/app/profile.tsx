@@ -7,20 +7,12 @@ import {
   TouchableOpacity,
   SafeAreaView,
   ScrollView,
-  FlatList,
   TextInput,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
-import { apiAddFriendByCode, apiGetFriends } from '@/lib/api';
+import { apiAddFriendByCode, apiGetFriends, apiGetUserById } from '@/lib/api';
 import { getCurrentUser, loadCurrentUser } from '@/lib/sessionStore';
-
-interface Achievement {
-  id: string;
-  icon: string;
-  title: string;
-  points: string;
-}
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -29,10 +21,6 @@ export default function ProfileScreen() {
   const [currentUserCode, setCurrentUserCode] = React.useState('----');
   const [friends, setFriends] = React.useState<string[]>([]);
   const [isAddingFriend, setIsAddingFriend] = React.useState(false);
-  const [achievements] = React.useState<Achievement[]>([
-    { id: '1', icon: '🎤', title: 'Treinar durante 30 min', points: '+50' },
-    { id: '2', icon: '🕐', title: 'Acordar antes das 7h', points: '+50' },
-  ]);
 
   React.useEffect(() => {
     void (async () => {
@@ -46,6 +34,10 @@ export default function ProfileScreen() {
       setCurrentUserCode(user.friendCode);
 
       try {
+        const refreshedUser = await apiGetUserById(user.id);
+        setCurrentUserName(refreshedUser.name);
+        setCurrentUserCode(refreshedUser.friendCode);
+
         const fetchedFriends = await apiGetFriends(user.id);
         setFriends(fetchedFriends.map((friend) => `${friend.name} (${friend.friendCode})`));
       } catch (_error) {
@@ -81,16 +73,6 @@ export default function ProfileScreen() {
     }
   };
 
-  const renderAchievement = ({ item }: { item: Achievement }) => (
-    <View style={styles.achievementCard}>
-      <Text style={styles.achievementIcon}>{item.icon}</Text>
-      <View style={styles.achievementContent}>
-        <Text style={styles.achievementTitle}>{item.title}</Text>
-      </View>
-      <Text style={styles.achievementPoints}>{item.points}</Text>
-    </View>
-  );
-
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false}>
@@ -117,7 +99,6 @@ export default function ProfileScreen() {
 
           {/* User Info */}
           <Text style={styles.userName}>{currentUserName}</Text>
-          <Text style={styles.userLevel}>Nível 6</Text>
 
           <View style={styles.friendCodeCard}>
             <Text style={styles.friendCodeTitle}>Seu Friend Code</Text>
@@ -152,22 +133,6 @@ export default function ProfileScreen() {
               ))}
             </View>
           )}
-
-          {/* Progress Bar */}
-          <View style={styles.progressBarContainer}>
-            <View style={[styles.progressBar, { width: '50%' }]} />
-          </View>
-        </View>
-
-        {/* Last Achievements Section */}
-        <View style={styles.achievementsSection}>
-          <Text style={styles.achievementsTitle}>Últimas conquistas</Text>
-          <FlatList
-            data={achievements}
-            renderItem={renderAchievement}
-            keyExtractor={item => item.id}
-            scrollEnabled={false}
-          />
         </View>
 
         <View style={{ height: 80 }} />
@@ -250,18 +215,6 @@ const styles = StyleSheet.create({
     color: '#000',
     marginBottom: 8,
   },
-  userLevel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 10,
-  },
-  friendCodeLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#111',
-    marginBottom: 12,
-  },
   friendCodeCard: {
     width: '82%',
     backgroundColor: '#ffffff',
@@ -343,58 +296,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#333',
     marginBottom: 2,
-  },
-  progressBarContainer: {
-    width: '70%',
-    height: 8,
-    backgroundColor: '#ccc',
-    borderRadius: 4,
-    overflow: 'hidden',
-  },
-  progressBar: {
-    height: '100%',
-    backgroundColor: '#22C55E',
-    borderRadius: 4,
-  },
-  achievementsSection: {
-    paddingHorizontal: 16,
-    paddingVertical: 20,
-  },
-  achievementsTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#000',
-    marginBottom: 14,
-  },
-  achievementCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-  },
-  achievementIcon: {
-    fontSize: 24,
-    marginRight: 12,
-  },
-  achievementContent: {
-    flex: 1,
-  },
-  achievementTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#000',
-  },
-  achievementPoints: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#22C55E',
   },
   bottomNav: {
     position: 'absolute',

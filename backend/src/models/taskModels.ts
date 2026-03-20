@@ -2,11 +2,14 @@ import { DataTypes, Model } from 'sequelize';
 import sequelize from '../config/database';
 
 class Task extends Model {
-  public id!: number;
-  public userId!: number;
-  public photoUrl!: string;
-  public completed!: boolean;
-  public analysis!: string | null;
+  declare id: number;
+  declare userId: number;
+  declare activity: string;
+  declare photoUrl: string;
+  declare points: number;
+  declare completed: boolean;
+  declare analysis: string | null;
+  declare scheduledFor: Date | null;
 }
 
 Task.init(
@@ -26,9 +29,18 @@ Task.init(
       },
       onDelete: 'CASCADE',
     },
+    activity: {
+      type: DataTypes.STRING(255),
+      allowNull: false,
+    },
     photoUrl: {
       type: DataTypes.STRING(500),
       allowNull: false,
+    },
+    points: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 10,
     },
     completed: {
       type: DataTypes.BOOLEAN,
@@ -37,6 +49,10 @@ Task.init(
     },
     analysis: {
       type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    scheduledFor: {
+      type: DataTypes.DATE,
       allowNull: true,
     },
   },
