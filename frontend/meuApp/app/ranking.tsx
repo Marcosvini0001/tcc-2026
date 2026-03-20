@@ -11,14 +11,21 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
-import { apiGetRanking, type ApiRankingUser } from '@/lib/api';
-import { getCurrentUser } from '@/lib/sessionStore';
+import { apiGetRanking, type ApiRankingUser, type ApiUser } from '@/lib/api';
+import { getCurrentUser, loadCurrentUser } from '@/lib/sessionStore';
 
 export default function RankingScreen() {
   const router = useRouter();
   const [ranking, setRanking] = React.useState<ApiRankingUser[]>([]);
   const [loading, setLoading] = React.useState(true);
-  const currentUser = getCurrentUser();
+  const [currentUser, setCurrentUser] = React.useState<ApiUser | null>(getCurrentUser());
+
+  React.useEffect(() => {
+    void (async () => {
+      const user = getCurrentUser() ?? (await loadCurrentUser());
+      setCurrentUser(user);
+    })();
+  }, []);
 
   const loadRanking = React.useCallback(async () => {
     try {

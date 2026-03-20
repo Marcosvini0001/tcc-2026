@@ -31,7 +31,7 @@ export default function LoginScreen() {
     try {
       setIsLoading(true);
       const user = await apiLogin({ email: email.trim(), password: password.trim() });
-      setCurrentUser(user);
+      await setCurrentUser(user);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Falha ao entrar.';
       Alert.alert('Erro no login', message);

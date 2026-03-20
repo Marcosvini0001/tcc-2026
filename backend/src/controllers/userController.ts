@@ -1,7 +1,10 @@
 import { Request, Response } from 'express';
 import { Op } from 'sequelize';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import User from '../models/userModels';
 import UserFriend from '../models/userFriendModels';
+import Task from '../models/taskModels';
 
 const sanitizeUser = (user: User) => ({
   id: user.id,
@@ -12,6 +15,24 @@ const sanitizeUser = (user: User) => ({
   createdAt: user.get('createdAt'),
   updatedAt: user.get('updatedAt'),
 });
+
+const sanitizeTask = (task: Task) => ({
+  id: task.id,
+  userId: task.userId,
+  photoUrl: task.photoUrl,
+  completed: task.completed,
+  analysis: task.get('analysis') as string | null,
+  createdAt: task.get('createdAt'),
+  updatedAt: task.get('updatedAt'),
+});
+
+const getMimeTypeByExtension = (filename: string) => {
+  const ext = path.extname(filename).toLowerCase();
+  if (ext === '.png') return 'image/png';
+  if (ext === '.webp') return 'image/webp';
+  if (ext === '.heic') return 'image/heic';
+  return 'image/jpeg';
+};
 
 const generateFriendCode = async (): Promise<string> => {
   while (true) {
@@ -230,6 +251,191 @@ export const getUserFriends = async (req: Request, res: Response) => {
     return res.json(friends.map((friend) => sanitizeUser(friend)));
   } catch (error) {
     console.error('Error fetching user friends:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+export const createTask = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { photoUrl } = req.body;
+
+    if (!photoUrl) {
+      return res.status(400).json({ message: 'photoUrl is required' });
+    }
+
+    const user = await User.findByPk(id as string);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const task = await Task.create({
+      userId: user.id,
+      photoUrl,
+      completed: false,
+    });
+
+    return res.status(201).json(sanitizeTask(task));
+  } catch (error) {
+    console.error('Error creating task:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+export const createTaskByUpload = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const file = req.file;
+
+    if (!file) {
+      return res.status(400).json({ message: 'photo file is required' });
+    }
+
+    const user = await User.findByPk(id as string);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const photoUrl = `${baseUrl}/uploads/${file.filename}`;
+
+    const task = await Task.create({
+      userId: user.id,
+      photoUrl,
+      completed: false,
+    });
+
+    return res.status(201).json(sanitizeTask(task));
+  } catch (error) {
+    console.error('Error creating task by upload:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+export const getUserTasks = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const user = await User.findByPk(id as string);
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const tasks = await Task.findAll({
+      where: { userId: user.id },
+      order: [['createdAt', 'DESC']],
+    });
+
+    return res.json(tasks.map((task) => sanitizeTask(task)));
+  } catch (error) {
+    console.error('Error fetching user tasks:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+export const completeTask = async (req: Request, res: Response) => {
+  try {
+    const { id, taskId } = req.params;
+
+    const user = await User.findByPk(id as string);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const task = await Task.findOne({ where: { id: taskId, userId: user.id } });
+    if (!task) {
+      return res.status(404).json({ message: 'Task not found' });
+    }
+
+    task.completed = true;
+    await task.save();
+
+    return res.json(sanitizeTask(task));
+  } catch (error) {
+    console.error('Error completing task:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+export const analyzeTaskPhoto = async (req: Request, res: Response) => {
+  try {
+    const { id, taskId } = req.params;
+
+    const user = await User.findByPk(id as string);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const task = await Task.findOne({ where: { id: taskId, userId: user.id } });
+    if (!task) {
+      return res.status(404).json({ message: 'Task not found' });
+    }
+
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return res.status(400).json({
+        message: 'GEMINI_API_KEY is not configured on backend environment',
+      });
+    }
+
+    const filename = path.basename(task.photoUrl);
+    const localImagePath = path.resolve(process.cwd(), 'uploads', filename);
+    const imageBuffer = await fs.readFile(localImagePath);
+    const base64Image = imageBuffer.toString('base64');
+    const mimeType = getMimeTypeByExtension(filename);
+
+    const geminiResponse = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                {
+                  text: 'Analise a imagem como o Google Lens: descreva objetos principais, texto visivel (OCR), contexto e uma sugestao de acao em portugues, de forma curta.',
+                },
+                {
+                  inline_data: {
+                    mime_type: mimeType,
+                    data: base64Image,
+                  },
+                },
+              ],
+            },
+          ],
+        }),
+      }
+    );
+
+    if (!geminiResponse.ok) {
+      const errorBody = await geminiResponse.text();
+      return res.status(502).json({
+        message: 'Vision provider error',
+        details: errorBody,
+      });
+    }
+
+    const data = (await geminiResponse.json()) as {
+      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+    };
+
+    const analysisText =
+      data.candidates?.[0]?.content?.parts?.map((part) => part.text ?? '').join('\n').trim() ||
+      'Nao foi possivel extrair detalhes da imagem.';
+
+    task.set('analysis', analysisText);
+    await task.save();
+
+    return res.json({
+      task: sanitizeTask(task),
+      analysis: analysisText,
+    });
+  } catch (error) {
+    console.error('Error analyzing task photo:', error);
     return res.status(500).json({ message: 'Internal server error' });
   }
 };

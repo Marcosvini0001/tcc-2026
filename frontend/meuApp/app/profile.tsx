@@ -13,7 +13,7 @@ import {
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { apiAddFriendByCode, apiGetFriends } from '@/lib/api';
-import { getCurrentUser } from '@/lib/sessionStore';
+import { getCurrentUser, loadCurrentUser } from '@/lib/sessionStore';
 
 interface Achievement {
   id: string;
@@ -25,8 +25,8 @@ interface Achievement {
 export default function ProfileScreen() {
   const router = useRouter();
   const [friendCodeInput, setFriendCodeInput] = React.useState('');
-  const [currentUserName, setCurrentUserName] = React.useState('Joao Silva');
-  const [currentUserCode, setCurrentUserCode] = React.useState('1234');
+  const [currentUserName, setCurrentUserName] = React.useState('Usuario');
+  const [currentUserCode, setCurrentUserCode] = React.useState('----');
   const [friends, setFriends] = React.useState<string[]>([]);
   const [isAddingFriend, setIsAddingFriend] = React.useState(false);
   const [achievements] = React.useState<Achievement[]>([
@@ -35,15 +35,16 @@ export default function ProfileScreen() {
   ]);
 
   React.useEffect(() => {
-    const user = getCurrentUser();
-    if (!user) {
-      return;
-    }
-
-    setCurrentUserName(user.name);
-    setCurrentUserCode(user.friendCode);
-
     void (async () => {
+      const user = getCurrentUser() ?? (await loadCurrentUser());
+      if (!user) {
+        setCurrentUserCode('Nao disponivel');
+        return;
+      }
+
+      setCurrentUserName(user.name);
+      setCurrentUserCode(user.friendCode);
+
       try {
         const fetchedFriends = await apiGetFriends(user.id);
         setFriends(fetchedFriends.map((friend) => `${friend.name} (${friend.friendCode})`));
@@ -118,7 +119,12 @@ export default function ProfileScreen() {
           <Text style={styles.userName}>{currentUserName}</Text>
           <Text style={styles.userLevel}>Nível 6</Text>
 
-          <Text style={styles.friendCodeLabel}>Seu codigo de amigo: {currentUserCode}</Text>
+          <View style={styles.friendCodeCard}>
+            <Text style={styles.friendCodeTitle}>Seu Friend Code</Text>
+            <Text style={styles.friendCodeSubtitle}>Codigo</Text>
+            <Text style={styles.friendCodeValue}>{currentUserCode}</Text>
+            <Text style={styles.friendCodeHint}>Compartilhe esse codigo para ser adicionado.</Text>
+          </View>
 
           <View style={styles.addFriendContainer}>
             <TextInput
@@ -255,6 +261,41 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#111',
     marginBottom: 12,
+  },
+  friendCodeCard: {
+    width: '82%',
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    alignItems: 'center',
+  },
+  friendCodeTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#4b5563',
+    marginBottom: 4,
+    textTransform: 'uppercase',
+  },
+  friendCodeSubtitle: {
+    fontSize: 11,
+    color: '#6b7280',
+    marginBottom: 2,
+    fontWeight: '600',
+  },
+  friendCodeValue: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#111827',
+    letterSpacing: 2,
+    marginBottom: 6,
+  },
+  friendCodeHint: {
+    fontSize: 11,
+    color: '#6b7280',
   },
   addFriendContainer: {
     width: '82%',

@@ -37,7 +37,7 @@ export default function RegisterScreen() {
         password: password.trim(),
         cpf: cpf.trim(),
       });
-      setCurrentUser(createdUser);
+      await setCurrentUser(createdUser);
       Alert.alert(
         'Cadastro realizado',
         `Conta criada com sucesso. Seu codigo de amigo: ${createdUser.friendCode}`
