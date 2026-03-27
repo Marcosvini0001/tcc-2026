@@ -1,17 +1,17 @@
 import React from 'react';
 import {
   Alert,
-  StyleSheet,
-  View,
-  Text,
-  TouchableOpacity,
   SafeAreaView,
   ScrollView,
+  StyleSheet,
+  Text,
   TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
-import { apiAddFriendByCode, apiGetFriends, apiGetUserById } from '@/lib/api';
+import { apiAddFriendByCode, apiGetFriends, apiGetUserById, type ApiUserProfile } from '@/lib/api';
 import { getCurrentUser, loadCurrentUser } from '@/lib/sessionStore';
 
 export default function ProfileScreen() {
@@ -21,33 +21,40 @@ export default function ProfileScreen() {
   const [currentUserCode, setCurrentUserCode] = React.useState('----');
   const [friends, setFriends] = React.useState<string[]>([]);
   const [isAddingFriend, setIsAddingFriend] = React.useState(false);
+  const [userProfile, setUserProfile] = React.useState<ApiUserProfile | null>(null);
 
-  React.useEffect(() => {
-    void (async () => {
-      const user = getCurrentUser() ?? (await loadCurrentUser());
-      if (!user) {
-        setCurrentUserCode('Nao disponivel');
-        return;
-      }
+  const loadProfile = React.useCallback(async () => {
+    const user = getCurrentUser() ?? (await loadCurrentUser());
+    if (!user) {
+      setCurrentUserCode('Nao disponivel');
+      setUserProfile(null);
+      return;
+    }
 
-      setCurrentUserName(user.name);
-      setCurrentUserCode(user.friendCode);
+    setCurrentUserName(user.name);
+    setCurrentUserCode(user.friendCode);
 
-      try {
-        const refreshedUser = await apiGetUserById(user.id);
-        setCurrentUserName(refreshedUser.name);
-        setCurrentUserCode(refreshedUser.friendCode);
+    try {
+      const [refreshedUser, fetchedFriends] = await Promise.all([
+        apiGetUserById(user.id),
+        apiGetFriends(user.id),
+      ]);
 
-        const fetchedFriends = await apiGetFriends(user.id);
-        setFriends(fetchedFriends.map((friend) => `${friend.name} (${friend.friendCode})`));
-      } catch (_error) {
-        Alert.alert('Erro', 'Nao foi possivel carregar sua lista de amigos.');
-      }
-    })();
+      setCurrentUserName(refreshedUser.name);
+      setCurrentUserCode(refreshedUser.friendCode);
+      setUserProfile(refreshedUser);
+      setFriends(fetchedFriends.map((friend) => `${friend.name} (${friend.friendCode})`));
+    } catch (_error) {
+      Alert.alert('Erro', 'Nao foi possivel carregar sua lista de amigos.');
+    }
   }, []);
 
+  React.useEffect(() => {
+    void loadProfile();
+  }, [loadProfile]);
+
   const handleAddFriend = async () => {
-    const user = getCurrentUser();
+    const user = getCurrentUser() ?? (await loadCurrentUser());
     if (!user) {
       Alert.alert('Sessao nao encontrada', 'Faca login para adicionar amigos.');
       return;
@@ -61,8 +68,7 @@ export default function ProfileScreen() {
     try {
       setIsAddingFriend(true);
       const addedFriend = await apiAddFriendByCode(user.id, friendCodeInput.trim());
-      const fetchedFriends = await apiGetFriends(user.id);
-      setFriends(fetchedFriends.map((friend) => `${friend.name} (${friend.friendCode})`));
+      await loadProfile();
       setFriendCodeInput('');
       Alert.alert('Amigo adicionado', `${addedFriend.name} agora faz parte da sua lista.`);
     } catch (error) {
@@ -76,28 +82,20 @@ export default function ProfileScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Header */}
         <View style={styles.header}>
           <View style={styles.logoContainer}>
-            <Image
-              source={require('@/img/neuroxp.jpeg')}
-              style={styles.logo}
-              contentFit="contain"
-            />
+            <Image source={require('@/img/neuroxp.jpeg')} style={styles.logo} contentFit="contain" />
           </View>
           <Text style={styles.headerTitle}>NeuroXP</Text>
         </View>
 
-        {/* Profile Section */}
         <View style={styles.profileSection}>
-          {/* Avatar */}
           <View style={styles.avatarContainer}>
             <View style={styles.avatar}>
               <Text style={styles.avatarEmoji}>👨</Text>
             </View>
           </View>
 
-          {/* User Info */}
           <Text style={styles.userName}>{currentUserName}</Text>
 
           <View style={styles.friendCodeCard}>
@@ -105,6 +103,28 @@ export default function ProfileScreen() {
             <Text style={styles.friendCodeSubtitle}>Codigo</Text>
             <Text style={styles.friendCodeValue}>{currentUserCode}</Text>
             <Text style={styles.friendCodeHint}>Compartilhe esse codigo para ser adicionado.</Text>
+          </View>
+
+          <View style={styles.statsCard}>
+            <Text style={styles.statsTitle}>Seu progresso</Text>
+            <View style={styles.statsRow}>
+              <View style={styles.statsMetric}>
+                <Text style={styles.statsMetricValue}>{userProfile?.level ?? 1}</Text>
+                <Text style={styles.statsMetricLabel}>Nivel</Text>
+              </View>
+              <View style={styles.statsMetric}>
+                <Text style={styles.statsMetricValue}>{userProfile?.points ?? 0}</Text>
+                <Text style={styles.statsMetricLabel}>Pontos</Text>
+              </View>
+              <View style={styles.statsMetric}>
+                <Text style={styles.statsMetricValue}>{userProfile?.completedTasks ?? 0}</Text>
+                <Text style={styles.statsMetricLabel}>Feitas</Text>
+              </View>
+            </View>
+            <View style={styles.levelTrack}>
+              <View style={[styles.levelFill, { width: `${userProfile?.progressPercent ?? 0}%` }]} />
+            </View>
+            <Text style={styles.levelHint}>{userProfile?.pointsToNextLevel ?? 0} pts para o proximo nivel</Text>
           </View>
 
           <View style={styles.addFriendContainer}>
@@ -116,14 +136,12 @@ export default function ProfileScreen() {
               placeholderTextColor="#888"
               keyboardType="number-pad"
             />
-            <TouchableOpacity style={styles.addFriendButton} onPress={handleAddFriend}>
-              <Text style={styles.addFriendButtonText}>
-                {isAddingFriend ? 'Adicionando...' : 'Adicionar'}
-              </Text>
+            <TouchableOpacity style={styles.addFriendButton} onPress={() => void handleAddFriend()}>
+              <Text style={styles.addFriendButtonText}>{isAddingFriend ? 'Adicionando...' : 'Adicionar'}</Text>
             </TouchableOpacity>
           </View>
 
-          {friends.length > 0 && (
+          {friends.length > 0 ? (
             <View style={styles.friendsListContainer}>
               <Text style={styles.friendsListTitle}>Meus amigos</Text>
               {friends.map((friendName) => (
@@ -132,13 +150,12 @@ export default function ProfileScreen() {
                 </Text>
               ))}
             </View>
-          )}
+          ) : null}
         </View>
 
         <View style={{ height: 80 }} />
       </ScrollView>
 
-      {/* Bottom Navigation */}
       <View style={styles.bottomNav}>
         <TouchableOpacity style={styles.navItem} onPress={() => router.push('/dashboard')}>
           <Text style={styles.navIcon}>🏠</Text>
@@ -249,6 +266,61 @@ const styles = StyleSheet.create({
   friendCodeHint: {
     fontSize: 11,
     color: '#6b7280',
+  },
+  statsCard: {
+    width: '82%',
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 12,
+  },
+  statsTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 10,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  statsMetric: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+  },
+  statsMetricValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+    textAlign: 'center',
+  },
+  statsMetricLabel: {
+    fontSize: 11,
+    color: '#6b7280',
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  levelTrack: {
+    marginTop: 12,
+    height: 8,
+    backgroundColor: '#d1d5db',
+    borderRadius: 999,
+    overflow: 'hidden',
+  },
+  levelFill: {
+    height: '100%',
+    backgroundColor: '#22C55E',
+    borderRadius: 999,
+  },
+  levelHint: {
+    marginTop: 8,
+    fontSize: 11,
+    color: '#4b5563',
+    textAlign: 'center',
   },
   addFriendContainer: {
     width: '82%',

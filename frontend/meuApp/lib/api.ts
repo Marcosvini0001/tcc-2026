@@ -8,12 +8,27 @@ export interface ApiUser {
   friendCode: string;
 }
 
-export interface ApiRankingUser {
+export interface ApiProgressStats {
+  totalTasks: number;
+  completedTasks: number;
+  pendingTasks: number;
+  taskPoints: number;
+  friendBonusPoints: number;
+  points: number;
+  level: number;
+  nextLevelAt: number;
+  pointsToNextLevel: number;
+  progressPercent: number;
+}
+
+export interface ApiUserProfile extends ApiUser, ApiProgressStats {
+  friendsCount: number;
+}
+
+export interface ApiRankingUser extends ApiProgressStats {
   id: number;
   name: string;
   friendsCount: number;
-  points: number;
-  level: number;
   rank: number;
 }
 
@@ -21,7 +36,7 @@ export interface ApiTask {
   id: number;
   userId: number;
   activity: string;
-  photoUrl: string;
+  photoUrl: string | null;
   points: number;
   completed: boolean;
   analysis?: string | null;
@@ -87,9 +102,9 @@ export async function apiLogin(payload: { email: string; password: string }): Pr
   });
 }
 
-export async function apiGetUserById(userId: number): Promise<ApiUser> {
+export async function apiGetUserById(userId: number): Promise<ApiUserProfile> {
   ensureValidUserId(userId);
-  return request<ApiUser>(`/users/${userId}`);
+  return request<ApiUserProfile>(`/users/${userId}`);
 }
 
 export async function apiAddFriendByCode(userId: number, friendCode: string): Promise<ApiUser> {
@@ -113,7 +128,7 @@ export async function apiGetRanking(): Promise<ApiRankingUser[]> {
 
 export async function apiCreateTask(
   userId: number,
-  payload: { photoUrl: string; activity: string; scheduledFor?: string }
+  payload: { photoUrl?: string; activity: string; scheduledFor?: string }
 ): Promise<ApiTask> {
   ensureValidUserId(userId);
   return request<ApiTask>(`/users/${userId}/tasks`, {

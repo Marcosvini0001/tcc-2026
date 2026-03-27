@@ -2,13 +2,13 @@ import React from 'react';
 import {
   ActivityIndicator,
   Alert,
+  FlatList,
+  SafeAreaView,
   StyleSheet,
-  View,
   Text,
   TextInput,
   TouchableOpacity,
-  SafeAreaView,
-  FlatList,
+  View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
@@ -16,12 +16,28 @@ import * as ImagePicker from 'expo-image-picker';
 import {
   apiAnalyzeTaskPhoto,
   apiCompleteTask,
+  apiCreateTask,
   apiGetTasks,
+  apiGetUserById,
   apiUploadTaskPhoto,
-  type ApiUser,
   type ApiTask,
+  type ApiUser,
+  type ApiUserProfile,
 } from '@/lib/api';
 import { getCurrentUser, loadCurrentUser } from '@/lib/sessionStore';
+
+const ACTIVITY_SUGGESTIONS = [
+  'Estudar por 30 minutos',
+  'Caminhada de 20 minutos',
+  'Treino rapido',
+  'Ler um capitulo',
+  'Organizar o quarto',
+  'Planejar o dia',
+];
+
+type TaskListItem =
+  | { type: 'section'; id: string; title: string; subtitle: string }
+  | { type: 'task'; id: string; task: ApiTask };
 
 export default function DashboardScreen() {
   const router = useRouter();
@@ -33,6 +49,7 @@ export default function DashboardScreen() {
   const [savingTask, setSavingTask] = React.useState(false);
   const [analyzingTaskId, setAnalyzingTaskId] = React.useState<number | null>(null);
   const [currentUser, setCurrentUser] = React.useState<ApiUser | null>(getCurrentUser());
+  const [userProfile, setUserProfile] = React.useState<ApiUserProfile | null>(null);
 
   React.useEffect(() => {
     void (async () => {
@@ -44,6 +61,7 @@ export default function DashboardScreen() {
   const loadTasks = React.useCallback(async () => {
     if (!currentUser) {
       setLoadingTasks(false);
+      setTasks([]);
       return;
     }
 
@@ -59,18 +77,41 @@ export default function DashboardScreen() {
     }
   }, [currentUser]);
 
+  const loadProfile = React.useCallback(async () => {
+    if (!currentUser) {
+      setUserProfile(null);
+      return;
+    }
+
+    try {
+      const profile = await apiGetUserById(currentUser.id);
+      setUserProfile(profile);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Falha ao carregar progresso.';
+      Alert.alert('Erro', message);
+    }
+  }, [currentUser]);
+
   React.useEffect(() => {
     void loadTasks();
   }, [loadTasks]);
 
-  const completedCount = tasks.filter((task) => task.completed).length;
-  const progressPercent = tasks.length > 0 ? Math.round((completedCount / tasks.length) * 100) : 0;
+  React.useEffect(() => {
+    void loadProfile();
+  }, [loadProfile]);
+
   const plannedTasks = tasks.filter((task) => !task.completed);
   const completedTasks = tasks.filter((task) => task.completed);
-
-  type TaskListItem =
-    | { type: 'section'; id: string; title: string; subtitle: string }
-    | { type: 'task'; id: string; task: ApiTask };
+  const completedCount = userProfile?.completedTasks ?? completedTasks.length;
+  const totalTasks = userProfile?.totalTasks ?? tasks.length;
+  const totalPoints =
+    userProfile?.points ?? completedTasks.reduce((sum, task) => sum + task.points, 0);
+  const progressPercent = userProfile?.progressPercent ?? 0;
+  const taskPoints =
+    userProfile?.taskPoints ?? completedTasks.reduce((sum, task) => sum + task.points, 0);
+  const friendsCount = userProfile?.friendsCount ?? 0;
+  const level = userProfile?.level ?? 1;
+  const pointsToNextLevel = userProfile?.pointsToNextLevel ?? 0;
 
   const listItems: TaskListItem[] = [
     {
@@ -130,29 +171,38 @@ export default function DashboardScreen() {
       return;
     }
 
-    if (!selectedPhotoUri) {
-      Alert.alert('Foto obrigatoria', 'Escolha uma foto da galeria ou tire uma foto.');
-      return;
-    }
-
     if (!activityName.trim()) {
       Alert.alert('Atividade obrigatoria', 'Descreva a atividade para cadastrar.');
       return;
     }
 
+    const hasPhoto = Boolean(selectedPhotoUri);
+
     try {
       setSavingTask(true);
-      await apiUploadTaskPhoto(
-        currentUser.id,
-        selectedPhotoUri,
-        activityName.trim(),
-        scheduledForInput.trim() || undefined
-      );
+
+      if (selectedPhotoUri) {
+        await apiUploadTaskPhoto(
+          currentUser.id,
+          selectedPhotoUri,
+          activityName.trim(),
+          scheduledForInput.trim() || undefined
+        );
+      } else {
+        await apiCreateTask(currentUser.id, {
+          activity: activityName.trim(),
+          scheduledFor: scheduledForInput.trim() || undefined,
+        });
+      }
+
       setSelectedPhotoUri(null);
       setActivityName('');
       setScheduledForInput('');
-      await loadTasks();
-      Alert.alert('Tarefa criada', 'Tarefa por foto cadastrada com sucesso.');
+      await Promise.all([loadTasks(), loadProfile()]);
+      Alert.alert(
+        hasPhoto ? 'Tarefa criada' : 'Atividade criada',
+        hasPhoto ? 'Tarefa por foto cadastrada com sucesso.' : 'Atividade cadastrada com sucesso.'
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Nao foi possivel cadastrar tarefa.';
       Alert.alert('Erro', message);
@@ -169,7 +219,7 @@ export default function DashboardScreen() {
 
     try {
       await apiCompleteTask(currentUser.id, taskId);
-      await loadTasks();
+      await Promise.all([loadTasks(), loadProfile()]);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Nao foi possivel concluir tarefa.';
       Alert.alert('Erro', message);
@@ -212,30 +262,36 @@ export default function DashboardScreen() {
 
   const renderTask = ({ item }: { item: ApiTask }) => (
     <View style={styles.taskCard}>
-      <Image source={{ uri: item.photoUrl }} style={styles.taskPhoto} contentFit="cover" />
+      {item.photoUrl ? (
+        <Image source={{ uri: item.photoUrl }} style={styles.taskPhoto} contentFit="cover" />
+      ) : (
+        <View style={styles.taskPhotoPlaceholder}>
+          <Text style={styles.taskPhotoPlaceholderText}>SEM FOTO</Text>
+        </View>
+      )}
       <View style={styles.taskContent}>
         <Text style={styles.taskTitle}>{item.activity}</Text>
         <Text style={styles.taskPoints}>{item.completed ? 'Concluida' : 'Pendente'} • +{item.points} pts</Text>
         <Text style={styles.taskMeta}>{formatScheduledFor(item.scheduledFor)}</Text>
+        {!item.photoUrl ? <Text style={styles.taskMeta}>Foto opcional nao enviada</Text> : null}
         {item.analysis ? <Text style={styles.analysisText}>{item.analysis}</Text> : null}
 
-        <TouchableOpacity
-          style={styles.analyzeButton}
-          onPress={() => void handleAnalyzeTask(item.id)}
-          disabled={analyzingTaskId === item.id}>
-          <Text style={styles.analyzeButtonText}>
-            {analyzingTaskId === item.id ? 'Reconhecendo...' : 'Reconhecer foto'}
-          </Text>
-        </TouchableOpacity>
+        {item.photoUrl ? (
+          <TouchableOpacity
+            style={[styles.analyzeButton, analyzingTaskId === item.id && styles.disabledButton]}
+            onPress={() => void handleAnalyzeTask(item.id)}
+            disabled={analyzingTaskId === item.id}>
+            <Text style={styles.analyzeButtonText}>
+              {analyzingTaskId === item.id ? 'Reconhecendo...' : 'Reconhecer foto'}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
-      {!item.completed && (
-        <TouchableOpacity
-          onPress={() => void handleCompleteTask(item.id)}
-          style={styles.concludeButton}>
+      {!item.completed ? (
+        <TouchableOpacity onPress={() => void handleCompleteTask(item.id)} style={styles.concludeButton}>
           <Text style={styles.concludeButtonText}>Concluir</Text>
         </TouchableOpacity>
-      )}
-      {item.completed && (
+      ) : (
         <View style={styles.completedBadge}>
           <Text style={styles.completedText}>✓</Text>
         </View>
@@ -266,110 +322,142 @@ export default function DashboardScreen() {
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={
           <>
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.logoContainer}>
-            <Image
-              source={require('@/img/neuroxp.jpeg')}
-              style={styles.logo}
-              contentFit="contain"
-            />
-          </View>
-          <Text style={styles.headerTitle}>NeuroXP</Text>
-        </View>
-
-        {/* Progress Section */}
-        <View style={styles.progressSection}>
-          <View style={styles.progressHeader}>
-            <Text style={styles.progressTitle}>Acompanhe seu progresso</Text>
-            <Text style={styles.progressPoints}>{completedCount}/{tasks.length}</Text>
-          </View>
-          <View style={styles.progressBarContainer}>
-            <View style={[styles.progressBar, { width: `${progressPercent}%` }]} />
-          </View>
-        </View>
-
-        {/* Create Task */}
-        <View style={styles.createTaskSection}>
-          <Text style={styles.createTaskTitle}>Cadastrar atividade (foto + descricao)</Text>
-
-          <TextInput
-            value={activityName}
-            onChangeText={setActivityName}
-            placeholder="Ex: Caminhada de 30 minutos"
-            placeholderTextColor="#888"
-            style={styles.textInput}
-          />
-
-          <TextInput
-            value={scheduledForInput}
-            onChangeText={setScheduledForInput}
-            placeholder="Data programada (AAAA-MM-DD) opcional"
-            placeholderTextColor="#888"
-            style={styles.textInput}
-            autoCapitalize="none"
-          />
-
-          {selectedPhotoUri ? (
-            <Image source={{ uri: selectedPhotoUri }} style={styles.previewPhoto} contentFit="cover" />
-          ) : (
-            <View style={styles.previewPlaceholder}>
-              <Text style={styles.previewPlaceholderText}>Nenhuma foto selecionada</Text>
+            <View style={styles.header}>
+              <View style={styles.logoContainer}>
+                <Image source={require('@/img/neuroxp.jpeg')} style={styles.logo} contentFit="contain" />
+              </View>
+              <Text style={styles.headerTitle}>NeuroXP</Text>
             </View>
-          )}
 
-          <View style={styles.imageActionRow}>
-            <TouchableOpacity style={styles.secondaryButton} onPress={() => void handleTakePhoto()}>
-              <Text style={styles.secondaryButtonText}>Camera</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.secondaryButton} onPress={() => void handlePickFromGallery()}>
-              <Text style={styles.secondaryButtonText}>Galeria</Text>
-            </TouchableOpacity>
-          </View>
+            <View style={styles.progressSection}>
+              <View style={styles.progressHeader}>
+                <View>
+                  <Text style={styles.progressTitle}>Nivel {level}</Text>
+                  <Text style={styles.progressHint}>{totalPoints} pts acumulados</Text>
+                </View>
+                <Text style={styles.progressPoints}>{completedCount}/{totalTasks}</Text>
+              </View>
 
-          <TouchableOpacity
-            style={[styles.createTaskButton, savingTask && styles.disabledButton]}
-            onPress={() => void handleCreateTask()}
-            disabled={savingTask}
-            activeOpacity={0.8}>
-            <Text style={styles.createTaskButtonText}>
-              {savingTask ? 'Cadastrando...' : 'Cadastrar tarefa'}
-            </Text>
-          </TouchableOpacity>
-        </View>
+              <View style={styles.progressBarContainer}>
+                <View style={[styles.progressBar, { width: `${progressPercent}%` }]} />
+              </View>
 
-        {loadingTasks && (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#22C55E" />
-            <Text style={styles.loadingText}>Carregando tarefas...</Text>
-          </View>
-        )}
+              <View style={styles.progressMetaRow}>
+                <Text style={styles.progressMetaText}>{pointsToNextLevel} pts para subir</Text>
+                <Text style={styles.progressMetaText}>{friendsCount} amigos</Text>
+              </View>
 
-        {!loadingTasks && tasks.length === 0 && (
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>Sem tarefas cadastradas ainda.</Text>
-          </View>
-        )}
+              <View style={styles.summaryRow}>
+                <View style={styles.summaryMetric}>
+                  <Text style={styles.summaryMetricValue}>{taskPoints}</Text>
+                  <Text style={styles.summaryMetricLabel}>Pts tarefas</Text>
+                </View>
+                <View style={styles.summaryMetric}>
+                  <Text style={styles.summaryMetricValue}>{completedCount}</Text>
+                  <Text style={styles.summaryMetricLabel}>Concluidas</Text>
+                </View>
+                <View style={styles.summaryMetric}>
+                  <Text style={styles.summaryMetricValue}>{userProfile?.pendingTasks ?? plannedTasks.length}</Text>
+                  <Text style={styles.summaryMetricLabel}>Pendentes</Text>
+                </View>
+              </View>
+            </View>
 
+            <View style={styles.createTaskSection}>
+              <Text style={styles.createTaskTitle}>Cadastrar atividade</Text>
+
+              <TextInput
+                value={activityName}
+                onChangeText={setActivityName}
+                placeholder="Ex: Caminhada de 30 minutos"
+                placeholderTextColor="#888"
+                style={styles.textInput}
+              />
+
+              <View style={styles.activitySuggestionsRow}>
+                {ACTIVITY_SUGGESTIONS.map((suggestion) => {
+                  const selected = activityName.trim().toLowerCase() === suggestion.toLowerCase();
+
+                  return (
+                    <TouchableOpacity
+                      key={suggestion}
+                      style={[styles.activityChip, selected && styles.activityChipSelected]}
+                      onPress={() => setActivityName(suggestion)}>
+                      <Text style={[styles.activityChipText, selected && styles.activityChipTextSelected]}>
+                        {suggestion}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              <TextInput
+                value={scheduledForInput}
+                onChangeText={setScheduledForInput}
+                placeholder="Data programada (AAAA-MM-DD) opcional"
+                placeholderTextColor="#888"
+                style={styles.textInput}
+                autoCapitalize="none"
+              />
+
+              {selectedPhotoUri ? (
+                <Image source={{ uri: selectedPhotoUri }} style={styles.previewPhoto} contentFit="cover" />
+              ) : (
+                <View style={styles.previewPlaceholder}>
+                  <Text style={styles.previewPlaceholderText}>
+                    Nenhuma foto selecionada. A atividade pode ser salva sem imagem.
+                  </Text>
+                </View>
+              )}
+
+              <View style={styles.imageActionRow}>
+                <TouchableOpacity style={styles.secondaryButton} onPress={() => void handleTakePhoto()}>
+                  <Text style={styles.secondaryButtonText}>Camera</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.secondaryButton} onPress={() => void handlePickFromGallery()}>
+                  <Text style={styles.secondaryButtonText}>Galeria</Text>
+                </TouchableOpacity>
+              </View>
+
+              <TouchableOpacity
+                style={[styles.createTaskButton, savingTask && styles.disabledButton]}
+                onPress={() => void handleCreateTask()}
+                disabled={savingTask}
+                activeOpacity={0.8}>
+                <Text style={styles.createTaskButtonText}>
+                  {savingTask ? 'Cadastrando...' : 'Salvar atividade'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {loadingTasks ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#22C55E" />
+                <Text style={styles.loadingText}>Carregando tarefas...</Text>
+              </View>
+            ) : null}
+
+            {!loadingTasks && tasks.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>Sem tarefas cadastradas ainda.</Text>
+              </View>
+            ) : null}
           </>
         }
         ListFooterComponent={
           <>
+            <TouchableOpacity
+              style={styles.testButton}
+              onPress={() => router.push('/ranking')}
+              activeOpacity={0.8}>
+              <Text style={styles.testButtonText}>Ver ranking</Text>
+            </TouchableOpacity>
 
-        {/* Test Button */}
-        <TouchableOpacity
-          style={styles.testButton}
-          onPress={() => router.push('/ranking')}
-          activeOpacity={0.8}>
-          <Text style={styles.testButtonText}>Ver ranking</Text>
-        </TouchableOpacity>
-
-        <View style={{ height: 80 }} />
+            <View style={{ height: 80 }} />
           </>
         }
       />
 
-      {/* Bottom Navigation */}
       <View style={styles.bottomNav}>
         <TouchableOpacity style={styles.navItem} onPress={() => router.push('/dashboard')}>
           <Text style={styles.navIcon}>🏠</Text>
@@ -428,9 +516,14 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   progressTitle: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '700',
     color: '#000',
+  },
+  progressHint: {
+    fontSize: 12,
+    color: '#374151',
+    marginTop: 4,
   },
   progressPoints: {
     fontSize: 14,
@@ -448,6 +541,41 @@ const styles = StyleSheet.create({
     backgroundColor: '#22C55E',
     borderRadius: 5,
   },
+  progressMetaRow: {
+    marginTop: 10,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  progressMetaText: {
+    fontSize: 12,
+    color: '#1f2937',
+    fontWeight: '600',
+  },
+  summaryRow: {
+    marginTop: 14,
+    flexDirection: 'row',
+    gap: 10,
+  },
+  summaryMetric: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+  },
+  summaryMetricValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+    textAlign: 'center',
+  },
+  summaryMetricLabel: {
+    fontSize: 11,
+    color: '#4b5563',
+    textAlign: 'center',
+    marginTop: 4,
+  },
   listContent: {
     paddingBottom: 10,
   },
@@ -461,6 +589,29 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#111',
     marginBottom: 10,
+  },
+  activitySuggestionsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 10,
+  },
+  activityChip: {
+    backgroundColor: '#e5e7eb',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  activityChipSelected: {
+    backgroundColor: '#22C55E',
+  },
+  activityChipText: {
+    fontSize: 11,
+    color: '#111827',
+    fontWeight: '600',
+  },
+  activityChipTextSelected: {
+    color: '#fff',
   },
   textInput: {
     backgroundColor: '#fff',
@@ -487,11 +638,13 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 16,
   },
   previewPlaceholderText: {
     fontSize: 13,
     color: '#444',
     fontWeight: '600',
+    textAlign: 'center',
   },
   imageActionRow: {
     flexDirection: 'row',
@@ -580,6 +733,20 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginRight: 12,
     backgroundColor: '#ddd',
+  },
+  taskPhotoPlaceholder: {
+    width: 56,
+    height: 56,
+    borderRadius: 8,
+    marginRight: 12,
+    backgroundColor: '#d1d5db',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  taskPhotoPlaceholderText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#374151',
   },
   taskContent: {
     flex: 1,

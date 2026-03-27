@@ -6,6 +6,30 @@ import User from '../models/userModels';
 import UserFriend from '../models/userFriendModels';
 import Task from '../models/taskModels';
 
+const LEVEL_STEP = 250;
+const FRIEND_BONUS_POINTS = 30;
+
+type TaskProgressSummary = {
+  totalTasks: number;
+  completedTasks: number;
+  pendingTasks: number;
+  taskPoints: number;
+};
+
+type UserProgressSummary = TaskProgressSummary & {
+  friendsCount: number;
+  friendBonusPoints: number;
+  points: number;
+  level: number;
+  nextLevelAt: number;
+  pointsToNextLevel: number;
+  progressPercent: number;
+};
+
+type UploadedTaskFile = {
+  filename: string;
+};
+
 const sanitizeUser = (user: User) => {
   const raw = user.toJSON() as Record<string, unknown>;
 
@@ -27,7 +51,7 @@ const sanitizeTask = (task: Task) => {
     id: Number(raw.id),
     userId: Number(raw.userId),
     activity: String(raw.activity ?? ''),
-    photoUrl: String(raw.photoUrl ?? ''),
+    photoUrl: typeof raw.photoUrl === 'string' && raw.photoUrl.length > 0 ? raw.photoUrl : null,
     points: Number(raw.points ?? 0),
     completed: Boolean(raw.completed),
     analysis: (raw.analysis as string | null) ?? null,
@@ -78,6 +102,79 @@ const getMimeTypeByExtension = (filename: string) => {
   if (ext === '.webp') return 'image/webp';
   if (ext === '.heic') return 'image/heic';
   return 'image/jpeg';
+};
+
+const getTaskProgressSummary = (tasks: Task[]): TaskProgressSummary => {
+  return tasks.reduce<TaskProgressSummary>(
+    (summary, task) => {
+      const completed = Boolean(task.get('completed'));
+      const points = Number(task.get('points') ?? 0);
+
+      summary.totalTasks += 1;
+
+      if (completed) {
+        summary.completedTasks += 1;
+        summary.taskPoints += points;
+      } else {
+        summary.pendingTasks += 1;
+      }
+
+      return summary;
+    },
+    {
+      totalTasks: 0,
+      completedTasks: 0,
+      pendingTasks: 0,
+      taskPoints: 0,
+    }
+  );
+};
+
+const getLevelSummary = (points: number) => {
+  const safePoints = Math.max(0, points);
+  const level = Math.max(1, Math.floor(safePoints / LEVEL_STEP) + 1);
+  const nextLevelAt = level * LEVEL_STEP;
+  const levelFloor = (level - 1) * LEVEL_STEP;
+  const progressPercent = Math.round(((safePoints - levelFloor) / LEVEL_STEP) * 100);
+
+  return {
+    level,
+    nextLevelAt,
+    pointsToNextLevel: Math.max(0, nextLevelAt - safePoints),
+    progressPercent: Math.max(0, Math.min(100, progressPercent)),
+  };
+};
+
+const getUserProgressSummary = (tasks: Task[], friendsCount: number): UserProgressSummary => {
+  const taskSummary = getTaskProgressSummary(tasks);
+  const friendBonusPoints = Math.max(0, friendsCount) * FRIEND_BONUS_POINTS;
+  const points = taskSummary.taskPoints + friendBonusPoints;
+
+  return {
+    ...taskSummary,
+    friendsCount,
+    friendBonusPoints,
+    points,
+    ...getLevelSummary(points),
+  };
+};
+
+const parseScheduledFor = (value: unknown) => {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmedValue = value.trim();
+  if (!trimmedValue) {
+    return null;
+  }
+
+  const parsedDate = new Date(trimmedValue);
+  if (Number.isNaN(parsedDate.getTime())) {
+    return 'invalid';
+  }
+
+  return parsedDate;
 };
 
 const generateFriendCode = async (): Promise<string> => {
@@ -203,37 +300,53 @@ export const getAllUsers = async (req: Request, res: Response) => {
 
 export const getRanking = async (_req: Request, res: Response) => {
   try {
-    const users = await User.findAll({
-      attributes: ['id', 'name'],
-      order: [['createdAt', 'ASC']],
-    });
+    const [users, relations, tasks] = await Promise.all([
+      User.findAll({
+        attributes: ['id', 'name'],
+        order: [['createdAt', 'ASC']],
+      }),
+      UserFriend.findAll({ attributes: ['userId'] }),
+      Task.findAll({ attributes: ['userId', 'points', 'completed'] }),
+    ]);
 
-    const relations = await UserFriend.findAll({ attributes: ['userId'] });
     const friendsCountMap = new Map<number, number>();
+    const tasksByUserMap = new Map<number, Task[]>();
 
     relations.forEach((relation) => {
       const count = friendsCountMap.get(relation.userId) ?? 0;
       friendsCountMap.set(relation.userId, count + 1);
     });
 
+    tasks.forEach((task) => {
+      const userId = Number(task.get('userId'));
+      const existingTasks = tasksByUserMap.get(userId) ?? [];
+      existingTasks.push(task);
+      tasksByUserMap.set(userId, existingTasks);
+    });
+
     const ranking = users
       .map((user) => {
         const userId = user.get('id') as number;
         const friendsCount = friendsCountMap.get(userId) ?? 0;
-        const points = friendsCount * 100;
-        const level = Math.max(1, Math.floor(points / 300) + 1);
+        const summary = getUserProgressSummary(tasksByUserMap.get(userId) ?? [], friendsCount);
 
         return {
           id: userId,
           name: user.get('name') as string,
-          friendsCount,
-          points,
-          level,
+          ...summary,
         };
       })
       .sort((a, b) => {
         if (b.points !== a.points) {
           return b.points - a.points;
+        }
+
+        if (b.completedTasks !== a.completedTasks) {
+          return b.completedTasks - a.completedTasks;
+        }
+
+        if (b.friendsCount !== a.friendsCount) {
+          return b.friendsCount - a.friendsCount;
         }
 
         return a.name.localeCompare(b.name);
@@ -259,7 +372,15 @@ export const getUserById = async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    return res.json(sanitizeUser(user));
+    const [relations, tasks] = await Promise.all([
+      UserFriend.findAll({ where: { userId: user.get('id') as number }, attributes: ['userId'] }),
+      Task.findAll({ where: { userId: user.get('id') as number } }),
+    ]);
+
+    return res.json({
+      ...sanitizeUser(user),
+      ...getUserProgressSummary(tasks, relations.length),
+    });
   } catch (error) {
     console.error('Error fetching user:', error);
     return res.status(500).json({ message: 'Internal server error' });
@@ -370,13 +491,16 @@ export const createTask = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { photoUrl, activity, scheduledFor } = req.body;
+    const normalizedActivity = String(activity ?? '').trim();
+    const normalizedPhotoUrl = typeof photoUrl === 'string' ? photoUrl.trim() : '';
+    const parsedScheduledFor = parseScheduledFor(scheduledFor);
 
-    if (!photoUrl) {
-      return res.status(400).json({ message: 'photoUrl is required' });
+    if (!normalizedActivity) {
+      return res.status(400).json({ message: 'activity is required' });
     }
 
-    if (!activity) {
-      return res.status(400).json({ message: 'activity is required' });
+    if (parsedScheduledFor === 'invalid') {
+      return res.status(400).json({ message: 'scheduledFor must be a valid date' });
     }
 
     const user = await User.findByPk(id as string);
@@ -386,11 +510,11 @@ export const createTask = async (req: Request, res: Response) => {
 
     const task = await Task.create({
       userId: user.get('id') as number,
-      activity,
-      photoUrl,
-      points: getActivityPoints(activity),
+      activity: normalizedActivity,
+      photoUrl: normalizedPhotoUrl || null,
+      points: getActivityPoints(normalizedActivity),
       completed: false,
-      scheduledFor: scheduledFor ? new Date(scheduledFor) : null,
+      scheduledFor: parsedScheduledFor,
     });
 
     return res.status(201).json(sanitizeTask(task));
@@ -403,9 +527,9 @@ export const createTask = async (req: Request, res: Response) => {
 export const createTaskByUpload = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const file = req.file;
+    const file = (req as Request & { file?: UploadedTaskFile }).file;
     const activity = String(req.body.activity ?? '').trim();
-    const scheduledFor = String(req.body.scheduledFor ?? '').trim();
+    const parsedScheduledFor = parseScheduledFor(req.body.scheduledFor);
 
     if (!file) {
       return res.status(400).json({ message: 'photo file is required' });
@@ -413,6 +537,10 @@ export const createTaskByUpload = async (req: Request, res: Response) => {
 
     if (!activity) {
       return res.status(400).json({ message: 'activity is required' });
+    }
+
+    if (parsedScheduledFor === 'invalid') {
+      return res.status(400).json({ message: 'scheduledFor must be a valid date' });
     }
 
     const user = await User.findByPk(id as string);
@@ -429,7 +557,7 @@ export const createTaskByUpload = async (req: Request, res: Response) => {
       photoUrl,
       points: getActivityPoints(activity),
       completed: false,
-      scheduledFor: scheduledFor ? new Date(scheduledFor) : null,
+      scheduledFor: parsedScheduledFor,
     });
 
     return res.status(201).json(sanitizeTask(task));
@@ -474,6 +602,10 @@ export const completeTask = async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'Task not found' });
     }
 
+    if (task.get('completed')) {
+      return res.json(sanitizeTask(task));
+    }
+
     task.set('completed', true);
     await task.save();
 
@@ -498,6 +630,11 @@ export const analyzeTaskPhoto = async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'Task not found' });
     }
 
+    const taskPhotoUrl = task.get('photoUrl') as string | null;
+    if (!taskPhotoUrl) {
+      return res.status(400).json({ message: 'Task does not have a photo to analyze' });
+    }
+
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       return res.status(400).json({
@@ -505,7 +642,7 @@ export const analyzeTaskPhoto = async (req: Request, res: Response) => {
       });
     }
 
-    const filename = path.basename(task.get('photoUrl') as string);
+    const filename = path.basename(taskPhotoUrl);
     const localImagePath = path.resolve(process.cwd(), 'uploads', filename);
     const imageBuffer = await fs.readFile(localImagePath);
     const base64Image = imageBuffer.toString('base64');

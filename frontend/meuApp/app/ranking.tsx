@@ -2,12 +2,12 @@ import React from 'react';
 import {
   ActivityIndicator,
   Alert,
+  FlatList,
+  SafeAreaView,
   StyleSheet,
-  View,
   Text,
   TouchableOpacity,
-  SafeAreaView,
-  FlatList,
+  View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
@@ -49,22 +49,29 @@ export default function RankingScreen() {
 
     return (
       <View style={[styles.friendCard, isCurrentUser && styles.currentUserCard]}>
-      <View style={styles.rankContainer}>
-        <Text style={styles.rankText}>{item.rank}º</Text>
+        <View style={styles.rankContainer}>
+          <Text style={styles.rankText}>{item.rank}º</Text>
+        </View>
+        <Text style={styles.avatar}>👤</Text>
+        <View style={styles.friendInfo}>
+          <Text style={styles.friendName}>{item.name}</Text>
+          <Text style={styles.friendLevel}>Nivel {item.level} • {item.completedTasks} tarefas concluidas</Text>
+          <View style={styles.levelTrack}>
+            <View style={[styles.levelFill, { width: `${item.progressPercent}%` }]} />
+          </View>
+          <Text style={styles.levelHint}>{item.pointsToNextLevel} pts para o proximo nivel</Text>
+        </View>
+        <View style={styles.pointsSide}>
+          <View style={styles.pointsContainer}>
+            <Text style={styles.starIcon}>⭐</Text>
+            <Text style={styles.points}>{item.points} pts</Text>
+          </View>
+          <View style={styles.pointsGainContainer}>
+            <Text style={styles.pointsGain}>{item.taskPoints} pts em tarefas</Text>
+            <Text style={styles.pointsGain}>{item.friendsCount} amigos</Text>
+          </View>
+        </View>
       </View>
-      <Text style={styles.avatar}>👤</Text>
-      <View style={styles.friendInfo}>
-        <Text style={styles.friendName}>{item.name}</Text>
-        <Text style={styles.friendLevel}>Nivel {item.level}</Text>
-      </View>
-      <View style={styles.pointsContainer}>
-        <Text style={styles.starIcon}>⭐</Text>
-        <Text style={styles.points}>{item.points}pts</Text>
-      </View>
-      <View style={styles.pointsGainContainer}>
-        <Text style={styles.pointsGain}>{item.friendsCount} amigos</Text>
-      </View>
-    </View>
     );
   };
 
@@ -76,60 +83,51 @@ export default function RankingScreen() {
         keyExtractor={(item) => String(item.id)}
         ListHeaderComponent={
           <>
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.logoContainer}>
-            <Image
-              source={require('@/img/neuroxp.jpeg')}
-              style={styles.logo}
-              contentFit="contain"
-            />
-          </View>
-          <Text style={styles.headerTitle}>NeuroXP</Text>
-        </View>
+            <View style={styles.header}>
+              <View style={styles.logoContainer}>
+                <Image source={require('@/img/neuroxp.jpeg')} style={styles.logo} contentFit="contain" />
+              </View>
+              <Text style={styles.headerTitle}>NeuroXP</Text>
+            </View>
 
-        {/* List Header */}
-        <View style={styles.listHeader}>
-          <Text style={styles.listTitle}>Ranking real (banco de dados)</Text>
-        </View>
+            <View style={styles.listHeader}>
+              <Text style={styles.listTitle}>Ranking real (banco de dados)</Text>
+            </View>
 
-            {loading && (
+            {loading ? (
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color="#22C55E" />
                 <Text style={styles.loadingText}>Carregando ranking...</Text>
               </View>
-            )}
+            ) : null}
 
-            {!loading && ranking.length === 0 && (
+            {!loading && ranking.length === 0 ? (
               <View style={styles.emptyContainer}>
                 <Text style={styles.emptyText}>Ainda nao ha usuarios no ranking.</Text>
               </View>
-            )}
+            ) : null}
           </>
         }
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
         ListFooterComponent={
           <>
-
-        {/* Test Button */}
-        <TouchableOpacity
-          style={styles.testButton}
-          onPress={() => router.push('/profile')}
-          activeOpacity={0.8}>
-          <Text style={styles.testButtonText}>Ver perfil</Text>
-        </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.testButton}
+              onPress={() => router.push('/profile')}
+              activeOpacity={0.8}>
+              <Text style={styles.testButtonText}>Ver perfil</Text>
+            </TouchableOpacity>
 
             <TouchableOpacity style={styles.refreshButton} onPress={() => void loadRanking()}>
               <Text style={styles.refreshButtonText}>Atualizar ranking</Text>
             </TouchableOpacity>
 
-        <View style={{ height: 80 }} />
+            <View style={{ height: 80 }} />
           </>
         }
       />
 
-      {/* Bottom Navigation */}
       <View style={styles.bottomNav}>
         <TouchableOpacity style={styles.navItem} onPress={() => router.push('/dashboard')}>
           <Text style={styles.navIcon}>🏠</Text>
@@ -258,11 +256,31 @@ const styles = StyleSheet.create({
   friendLevel: {
     fontSize: 12,
     color: '#666',
+    marginBottom: 8,
+  },
+  levelTrack: {
+    height: 6,
+    borderRadius: 999,
+    backgroundColor: '#e5e7eb',
+    overflow: 'hidden',
+  },
+  levelFill: {
+    height: '100%',
+    borderRadius: 999,
+    backgroundColor: '#22C55E',
+  },
+  levelHint: {
+    fontSize: 10,
+    color: '#6b7280',
+    marginTop: 6,
+  },
+  pointsSide: {
+    alignItems: 'flex-end',
+    marginLeft: 8,
   },
   pointsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginRight: 12,
   },
   starIcon: {
     fontSize: 16,
@@ -274,11 +292,11 @@ const styles = StyleSheet.create({
     color: '#000',
   },
   pointsGainContainer: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+    marginTop: 8,
+    alignItems: 'flex-end',
   },
   pointsGain: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
     color: '#22C55E',
   },
