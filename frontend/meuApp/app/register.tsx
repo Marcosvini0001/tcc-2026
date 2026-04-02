@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { apiRegisterUser } from '@/lib/api';
-import { setCurrentUser } from '@/lib/sessionStore';
+import { loadCurrentSession, setCurrentSession } from '@/lib/sessionStore';
 
 export default function RegisterScreen() {
   const router = useRouter();
@@ -56,6 +56,15 @@ export default function RegisterScreen() {
   const passwordBarColor =
     passwordLevel === 'forte' ? '#16A34A' : passwordLevel === 'media' ? '#F59E0B' : '#DC2626';
 
+  React.useEffect(() => {
+    void (async () => {
+      const currentSession = await loadCurrentSession();
+      if (currentSession) {
+        router.replace('/dashboard');
+      }
+    })();
+  }, [router]);
+
   const handleRegister = async () => {
     setNameError('');
     setEmailError('');
@@ -83,16 +92,16 @@ export default function RegisterScreen() {
 
     try {
       setIsLoading(true);
-      const createdUser = await apiRegisterUser({
+      const createdSession = await apiRegisterUser({
         name: name.trim(),
         email: email.trim(),
         password: password.trim(),
         cpf: cpf.trim(),
       });
-      await setCurrentUser(createdUser);
+      await setCurrentSession(createdSession);
       Alert.alert(
         'Cadastro realizado',
-        `Conta criada com sucesso. Seu codigo de amigo: ${createdUser.friendCode}`
+        `Conta criada com sucesso. Seu codigo de amigo: ${createdSession.user.friendCode}`
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Nao foi possivel cadastrar.';

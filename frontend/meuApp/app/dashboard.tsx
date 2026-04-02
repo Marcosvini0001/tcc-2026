@@ -24,7 +24,7 @@ import {
   type ApiUser,
   type ApiUserProfile,
 } from '@/lib/api';
-import { getCurrentUser, loadCurrentUser } from '@/lib/sessionStore';
+import { clearCurrentSession, getCurrentUser, loadCurrentUser } from '@/lib/sessionStore';
 
 const ACTIVITY_SUGGESTIONS = [
   'Estudar por 30 minutos',
@@ -54,9 +54,14 @@ export default function DashboardScreen() {
   React.useEffect(() => {
     void (async () => {
       const user = getCurrentUser() ?? (await loadCurrentUser());
+      if (!user) {
+        router.replace('/login');
+        return;
+      }
+
       setCurrentUser(user);
     })();
-  }, []);
+  }, [router]);
 
   const loadTasks = React.useCallback(async () => {
     if (!currentUser) {
@@ -71,11 +76,17 @@ export default function DashboardScreen() {
       setTasks(fetchedTasks);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Falha ao carregar tarefas.';
+      if (message.toLowerCase().includes('token') || message.toLowerCase().includes('auth')) {
+        await clearCurrentSession();
+        router.replace('/login');
+        return;
+      }
+
       Alert.alert('Erro', message);
     } finally {
       setLoadingTasks(false);
     }
-  }, [currentUser]);
+  }, [currentUser, router]);
 
   const loadProfile = React.useCallback(async () => {
     if (!currentUser) {
@@ -88,9 +99,15 @@ export default function DashboardScreen() {
       setUserProfile(profile);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Falha ao carregar progresso.';
+      if (message.toLowerCase().includes('token') || message.toLowerCase().includes('auth')) {
+        await clearCurrentSession();
+        router.replace('/login');
+        return;
+      }
+
       Alert.alert('Erro', message);
     }
-  }, [currentUser]);
+  }, [currentUser, router]);
 
   React.useEffect(() => {
     void loadTasks();
@@ -205,6 +222,12 @@ export default function DashboardScreen() {
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Nao foi possivel cadastrar tarefa.';
+      if (message.toLowerCase().includes('token') || message.toLowerCase().includes('auth')) {
+        await clearCurrentSession();
+        router.replace('/login');
+        return;
+      }
+
       Alert.alert('Erro', message);
     } finally {
       setSavingTask(false);
@@ -222,6 +245,12 @@ export default function DashboardScreen() {
       await Promise.all([loadTasks(), loadProfile()]);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Nao foi possivel concluir tarefa.';
+      if (message.toLowerCase().includes('token') || message.toLowerCase().includes('auth')) {
+        await clearCurrentSession();
+        router.replace('/login');
+        return;
+      }
+
       Alert.alert('Erro', message);
     }
   };
@@ -241,6 +270,12 @@ export default function DashboardScreen() {
       Alert.alert('Analise concluida', updatedTask.analysis || 'Sem detalhes retornados.');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Nao foi possivel analisar a foto.';
+      if (message.toLowerCase().includes('token') || message.toLowerCase().includes('auth')) {
+        await clearCurrentSession();
+        router.replace('/login');
+        return;
+      }
+
       Alert.alert('Erro', message);
     } finally {
       setAnalyzingTaskId(null);

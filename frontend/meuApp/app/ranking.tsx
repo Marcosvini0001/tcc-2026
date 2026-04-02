@@ -12,7 +12,7 @@ import {
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { apiGetRanking, type ApiRankingUser, type ApiUser } from '@/lib/api';
-import { getCurrentUser, loadCurrentUser } from '@/lib/sessionStore';
+import { clearCurrentSession, getCurrentUser, loadCurrentUser } from '@/lib/sessionStore';
 
 export default function RankingScreen() {
   const router = useRouter();
@@ -23,9 +23,14 @@ export default function RankingScreen() {
   React.useEffect(() => {
     void (async () => {
       const user = getCurrentUser() ?? (await loadCurrentUser());
+      if (!user) {
+        router.replace('/login');
+        return;
+      }
+
       setCurrentUser(user);
     })();
-  }, []);
+  }, [router]);
 
   const loadRanking = React.useCallback(async () => {
     try {
@@ -34,11 +39,17 @@ export default function RankingScreen() {
       setRanking(data);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Falha ao carregar ranking.';
+      if (message.toLowerCase().includes('token') || message.toLowerCase().includes('auth')) {
+        await clearCurrentSession();
+        router.replace('/login');
+        return;
+      }
+
       Alert.alert('Erro', message);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [router]);
 
   React.useEffect(() => {
     void loadRanking();

@@ -8,6 +8,8 @@ class User extends Model {
   declare password: string;
   declare cpf: string;
   declare friendCode: string;
+  declare resetPasswordTokenHash: string | null;
+  declare resetPasswordExpiresAt: Date | null;
 }
 
 User.init({
@@ -39,6 +41,14 @@ User.init({
     type: DataTypes.STRING(5),
     allowNull: false,
     unique: true,
+  },
+  resetPasswordTokenHash: {
+    type: DataTypes.STRING(64),
+    allowNull: true,
+  },
+  resetPasswordExpiresAt: {
+    type: DataTypes.DATE,
+    allowNull: true,
   },
 }, {
   sequelize,

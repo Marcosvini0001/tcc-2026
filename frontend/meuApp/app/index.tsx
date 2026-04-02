@@ -2,9 +2,19 @@ import React from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, SafeAreaView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
+import { loadCurrentSession } from '@/lib/sessionStore';
 
 export default function WelcomeScreen() {
   const router = useRouter();
+
+  React.useEffect(() => {
+    void (async () => {
+      const currentSession = await loadCurrentSession();
+      if (currentSession) {
+        router.replace('/dashboard');
+      }
+    })();
+  }, [router]);
 
   const handleStartPress = () => {
     router.push('/login');

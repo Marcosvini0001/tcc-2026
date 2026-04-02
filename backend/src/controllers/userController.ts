@@ -2,99 +2,43 @@ import { Request, Response } from 'express';
 import { Op } from 'sequelize';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import sequelize from '../config/database';
 import User from '../models/userModels';
 import UserFriend from '../models/userFriendModels';
 import Task from '../models/taskModels';
-
-const LEVEL_STEP = 250;
-const FRIEND_BONUS_POINTS = 30;
-
-type TaskProgressSummary = {
-  totalTasks: number;
-  completedTasks: number;
-  pendingTasks: number;
-  taskPoints: number;
-};
-
-type UserProgressSummary = TaskProgressSummary & {
-  friendsCount: number;
-  friendBonusPoints: number;
-  points: number;
-  level: number;
-  nextLevelAt: number;
-  pointsToNextLevel: number;
-  progressPercent: number;
-};
+import { sanitizeTask } from '../serializers/taskSerializers';
+import { sanitizeUser } from '../serializers/userSerializers';
+import {
+  createAccessToken,
+  hashPassword,
+  validatePasswordStrength,
+  verifyPassword,
+} from '../services/authService';
+import {
+  createPasswordResetToken,
+  hashPasswordResetToken,
+  isPasswordResetExpired,
+} from '../services/passwordResetService';
+import {
+  getActivityPoints,
+  getUserProgressSummary,
+  parseScheduledFor,
+} from '../services/progressService';
 
 type UploadedTaskFile = {
   filename: string;
 };
 
-const sanitizeUser = (user: User) => {
-  const raw = user.toJSON() as Record<string, unknown>;
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-  return {
-    id: Number(raw.id),
-    name: String(raw.name ?? ''),
-    email: String(raw.email ?? ''),
-    cpf: String(raw.cpf ?? ''),
-    friendCode: String(raw.friendCode ?? ''),
-    createdAt: raw.createdAt,
-    updatedAt: raw.updatedAt,
-  };
-};
+const normalizeText = (value: unknown) => String(value ?? '').trim();
+const normalizeEmail = (value: unknown) => normalizeText(value).toLowerCase();
+const normalizeCpf = (value: unknown) => normalizeText(value).replace(/\D/g, '');
 
-const sanitizeTask = (task: Task) => {
-  const raw = task.toJSON() as Record<string, unknown>;
-
-  return {
-    id: Number(raw.id),
-    userId: Number(raw.userId),
-    activity: String(raw.activity ?? ''),
-    photoUrl: typeof raw.photoUrl === 'string' && raw.photoUrl.length > 0 ? raw.photoUrl : null,
-    points: Number(raw.points ?? 0),
-    completed: Boolean(raw.completed),
-    analysis: (raw.analysis as string | null) ?? null,
-    scheduledFor: (raw.scheduledFor as Date | null) ?? null,
-    createdAt: raw.createdAt,
-    updatedAt: raw.updatedAt,
-  };
-};
-
-const getActivityPoints = (activity: string) => {
-  const normalized = activity.toLowerCase();
-
-  const highValueKeywords = [
-    'estudar',
-    'curso',
-    'academia',
-    'treino',
-    'corrida',
-    'projeto',
-    'trabalho',
-    'leitura',
-    'ingles',
-    'programacao',
-  ];
-
-  const mediumValueKeywords = ['organizar', 'limpar', 'mercado', 'planejar', 'cozinhar', 'caminhada'];
-
-  const lowValueKeywords = ['scroll', 'rede social', 'tv', 'serie', 'jogo casual', 'meme'];
-
-  if (highValueKeywords.some((keyword) => normalized.includes(keyword))) {
-    return 120;
-  }
-
-  if (mediumValueKeywords.some((keyword) => normalized.includes(keyword))) {
-    return 60;
-  }
-
-  if (lowValueKeywords.some((keyword) => normalized.includes(keyword))) {
-    return 15;
-  }
-
-  return 40;
-};
+const mapTaskToProgressTask = (task: Task) => ({
+  completed: Boolean(task.get('completed')),
+  points: Number(task.get('points') ?? 0),
+});
 
 const getMimeTypeByExtension = (filename: string) => {
   const ext = path.extname(filename).toLowerCase();
@@ -102,79 +46,6 @@ const getMimeTypeByExtension = (filename: string) => {
   if (ext === '.webp') return 'image/webp';
   if (ext === '.heic') return 'image/heic';
   return 'image/jpeg';
-};
-
-const getTaskProgressSummary = (tasks: Task[]): TaskProgressSummary => {
-  return tasks.reduce<TaskProgressSummary>(
-    (summary, task) => {
-      const completed = Boolean(task.get('completed'));
-      const points = Number(task.get('points') ?? 0);
-
-      summary.totalTasks += 1;
-
-      if (completed) {
-        summary.completedTasks += 1;
-        summary.taskPoints += points;
-      } else {
-        summary.pendingTasks += 1;
-      }
-
-      return summary;
-    },
-    {
-      totalTasks: 0,
-      completedTasks: 0,
-      pendingTasks: 0,
-      taskPoints: 0,
-    }
-  );
-};
-
-const getLevelSummary = (points: number) => {
-  const safePoints = Math.max(0, points);
-  const level = Math.max(1, Math.floor(safePoints / LEVEL_STEP) + 1);
-  const nextLevelAt = level * LEVEL_STEP;
-  const levelFloor = (level - 1) * LEVEL_STEP;
-  const progressPercent = Math.round(((safePoints - levelFloor) / LEVEL_STEP) * 100);
-
-  return {
-    level,
-    nextLevelAt,
-    pointsToNextLevel: Math.max(0, nextLevelAt - safePoints),
-    progressPercent: Math.max(0, Math.min(100, progressPercent)),
-  };
-};
-
-const getUserProgressSummary = (tasks: Task[], friendsCount: number): UserProgressSummary => {
-  const taskSummary = getTaskProgressSummary(tasks);
-  const friendBonusPoints = Math.max(0, friendsCount) * FRIEND_BONUS_POINTS;
-  const points = taskSummary.taskPoints + friendBonusPoints;
-
-  return {
-    ...taskSummary,
-    friendsCount,
-    friendBonusPoints,
-    points,
-    ...getLevelSummary(points),
-  };
-};
-
-const parseScheduledFor = (value: unknown) => {
-  if (typeof value !== 'string') {
-    return null;
-  }
-
-  const trimmedValue = value.trim();
-  if (!trimmedValue) {
-    return null;
-  }
-
-  const parsedDate = new Date(trimmedValue);
-  if (Number.isNaN(parsedDate.getTime())) {
-    return 'invalid';
-  }
-
-  return parsedDate;
 };
 
 const generateFriendCode = async (): Promise<string> => {
@@ -193,31 +64,52 @@ const generateFriendCode = async (): Promise<string> => {
 
 export const createUser = async (req: Request, res: Response) => {
   try {
-    const { name, email, password, cpf } = req.body;
+    const name = normalizeText(req.body.name);
+    const email = normalizeEmail(req.body.email);
+    const password = String(req.body.password ?? '');
+    const cpf = normalizeCpf(req.body.cpf);
 
     if (!name || !email || !password || !cpf) {
       return res.status(400).json({ message: 'name, email, password and cpf are required' });
     }
 
-    const existingEmail = await User.findOne({ where: { email } });
+    if (!EMAIL_REGEX.test(email)) {
+      return res.status(400).json({ message: 'email invalido' });
+    }
+
+    if (cpf.length !== 11) {
+      return res.status(400).json({ message: 'cpf invalido' });
+    }
+
+    const passwordValidation = validatePasswordStrength(password);
+    if (passwordValidation) {
+      return res.status(400).json({ message: passwordValidation });
+    }
+
+    const [existingEmail, existingCpf] = await Promise.all([
+      User.findOne({ where: { email } }),
+      User.findOne({ where: { cpf } }),
+    ]);
+
     if (existingEmail) {
       return res.status(409).json({ message: 'email ja cadastrado' });
     }
 
-    const existingCpf = await User.findOne({ where: { cpf } });
     if (existingCpf) {
       return res.status(409).json({ message: 'cpf ja cadastrado' });
     }
 
     const friendCode = await generateFriendCode();
-    const user = await User.create({ name, email, password, cpf, friendCode });
-    const createdUser = await User.findByPk((user.get('id') as number) || 0);
+    const passwordHash = await hashPassword(password);
 
-    if (!createdUser) {
-      return res.status(500).json({ message: 'Falha ao carregar usuario criado' });
-    }
+    const createdUser = await sequelize.transaction(async (transaction) => {
+      return User.create({ name, email, password: passwordHash, cpf, friendCode }, { transaction });
+    });
 
-    return res.status(201).json(sanitizeUser(createdUser));
+    return res.status(201).json({
+      token: createAccessToken({ userId: createdUser.id, role: 'user' }),
+      user: sanitizeUser(createdUser),
+    });
   } catch (error) {
     console.error('Error creating user:', error);
     const maybeSequelizeError = error as {
@@ -265,7 +157,8 @@ export const createUser = async (req: Request, res: Response) => {
 
 export const loginUser = async (req: Request, res: Response) => {
   try {
-    const { email, password } = req.body;
+    const email = normalizeEmail(req.body.email);
+    const password = String(req.body.password ?? '');
 
     if (!email || !password) {
       return res.status(400).json({ message: 'email and password are required' });
@@ -273,17 +166,89 @@ export const loginUser = async (req: Request, res: Response) => {
 
     const user = await User.findOne({ where: { email } });
     if (!user) {
-      return res.status(404).json({ message: 'email nao cadastrado' });
+      return res.status(401).json({ message: 'Credenciais invalidas' });
     }
 
-    const authenticatedUser = await User.findOne({ where: { email, password } });
-    if (!authenticatedUser) {
-      return res.status(401).json({ message: 'senha incorreta' });
+    const isPasswordValid = await verifyPassword(password, user.password);
+    if (!isPasswordValid) {
+      return res.status(401).json({ message: 'Credenciais invalidas' });
     }
 
-    return res.json(sanitizeUser(authenticatedUser));
+    return res.json({
+      token: createAccessToken({ userId: user.id, role: 'user' }),
+      user: sanitizeUser(user),
+    });
   } catch (error) {
     console.error('Error logging in user:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+export const forgotPassword = async (req: Request, res: Response) => {
+  try {
+    const email = normalizeEmail(req.body.email);
+
+    if (!email) {
+      return res.status(400).json({ message: 'email is required' });
+    }
+
+    if (!EMAIL_REGEX.test(email)) {
+      return res.status(400).json({ message: 'email invalido' });
+    }
+
+    const user = await User.findOne({ where: { email } });
+
+    if (!user) {
+      return res.json({
+        message: 'Se o e-mail existir, enviaremos instrucoes para redefinir a senha.',
+      });
+    }
+
+    const { token, tokenHash, expiresAt } = createPasswordResetToken();
+    user.resetPasswordTokenHash = tokenHash;
+    user.resetPasswordExpiresAt = expiresAt;
+    await user.save();
+
+    return res.json({
+      message: 'Se o e-mail existir, enviaremos instrucoes para redefinir a senha.',
+      resetTokenPreview: process.env.NODE_ENV === 'production' ? undefined : token,
+      expiresAt,
+    });
+  } catch (error) {
+    console.error('Error requesting password reset:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+export const resetPassword = async (req: Request, res: Response) => {
+  try {
+    const token = normalizeText(req.body.token);
+    const newPassword = String(req.body.newPassword ?? '');
+
+    if (!token || !newPassword) {
+      return res.status(400).json({ message: 'token and newPassword are required' });
+    }
+
+    const passwordValidation = validatePasswordStrength(newPassword);
+    if (passwordValidation) {
+      return res.status(400).json({ message: passwordValidation });
+    }
+
+    const tokenHash = hashPasswordResetToken(token);
+    const user = await User.findOne({ where: { resetPasswordTokenHash: tokenHash } });
+
+    if (!user || isPasswordResetExpired(user.resetPasswordExpiresAt)) {
+      return res.status(400).json({ message: 'Token de redefinicao invalido ou expirado' });
+    }
+
+    user.password = await hashPassword(newPassword);
+    user.resetPasswordTokenHash = null;
+    user.resetPasswordExpiresAt = null;
+    await user.save();
+
+    return res.json({ message: 'Senha redefinida com sucesso' });
+  } catch (error) {
+    console.error('Error resetting password:', error);
     return res.status(500).json({ message: 'Internal server error' });
   }
 };
@@ -328,7 +293,10 @@ export const getRanking = async (_req: Request, res: Response) => {
       .map((user) => {
         const userId = user.get('id') as number;
         const friendsCount = friendsCountMap.get(userId) ?? 0;
-        const summary = getUserProgressSummary(tasksByUserMap.get(userId) ?? [], friendsCount);
+        const summary = getUserProgressSummary(
+          (tasksByUserMap.get(userId) ?? []).map((task) => mapTaskToProgressTask(task)),
+          friendsCount
+        );
 
         return {
           id: userId,
@@ -379,7 +347,7 @@ export const getUserById = async (req: Request, res: Response) => {
 
     return res.json({
       ...sanitizeUser(user),
-      ...getUserProgressSummary(tasks, relations.length),
+      ...getUserProgressSummary(tasks.map((task) => mapTaskToProgressTask(task)), relations.length),
     });
   } catch (error) {
     console.error('Error fetching user:', error);
@@ -390,17 +358,54 @@ export const getUserById = async (req: Request, res: Response) => {
 export const updateUser = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { name, email, password, cpf } = req.body;
+    const name = typeof req.body.name === 'string' ? normalizeText(req.body.name) : '';
+    const email = typeof req.body.email === 'string' ? normalizeEmail(req.body.email) : '';
+    const password = typeof req.body.password === 'string' ? req.body.password : '';
+    const cpf = typeof req.body.cpf === 'string' ? normalizeCpf(req.body.cpf) : '';
 
     const user = await User.findByPk(id as string);
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    user.name = name ?? user.name;
-    user.email = email ?? user.email;
-    user.password = password ?? user.password;
-    user.cpf = cpf ?? user.cpf;
+    if (email) {
+      if (!EMAIL_REGEX.test(email)) {
+        return res.status(400).json({ message: 'email invalido' });
+      }
+
+      const existingEmail = await User.findOne({ where: { email } });
+      if (existingEmail && existingEmail.id !== user.id) {
+        return res.status(409).json({ message: 'email ja cadastrado' });
+      }
+
+      user.email = email;
+    }
+
+    if (cpf) {
+      if (cpf.length !== 11) {
+        return res.status(400).json({ message: 'cpf invalido' });
+      }
+
+      const existingCpf = await User.findOne({ where: { cpf } });
+      if (existingCpf && existingCpf.id !== user.id) {
+        return res.status(409).json({ message: 'cpf ja cadastrado' });
+      }
+
+      user.cpf = cpf;
+    }
+
+    if (password) {
+      const passwordValidation = validatePasswordStrength(password);
+      if (passwordValidation) {
+        return res.status(400).json({ message: passwordValidation });
+      }
+
+      user.password = await hashPassword(password);
+    }
+
+    if (name) {
+      user.name = name;
+    }
 
     await user.save();
     return res.json(sanitizeUser(user));
@@ -413,7 +418,7 @@ export const updateUser = async (req: Request, res: Response) => {
 export const addFriendByCode = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { friendCode } = req.body;
+    const friendCode = normalizeText(req.body.friendCode);
 
     if (!friendCode) {
       return res.status(400).json({ message: 'friendCode is required' });
@@ -449,8 +454,10 @@ export const addFriendByCode = async (req: Request, res: Response) => {
       return res.status(409).json({ message: 'Users are already friends' });
     }
 
-    await UserFriend.create({ userId, friendId });
-    await UserFriend.create({ userId: friendId, friendId: userId });
+    await sequelize.transaction(async (transaction) => {
+      await UserFriend.create({ userId, friendId }, { transaction });
+      await UserFriend.create({ userId: friendId, friendId: userId }, { transaction });
+    });
 
     return res.status(201).json({
       message: 'Friend added successfully',
@@ -491,7 +498,7 @@ export const createTask = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { photoUrl, activity, scheduledFor } = req.body;
-    const normalizedActivity = String(activity ?? '').trim();
+    const normalizedActivity = normalizeText(activity);
     const normalizedPhotoUrl = typeof photoUrl === 'string' ? photoUrl.trim() : '';
     const parsedScheduledFor = parseScheduledFor(scheduledFor);
 
@@ -528,7 +535,7 @@ export const createTaskByUpload = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const file = (req as Request & { file?: UploadedTaskFile }).file;
-    const activity = String(req.body.activity ?? '').trim();
+    const activity = normalizeText(req.body.activity);
     const parsedScheduledFor = parseScheduledFor(req.body.scheduledFor);
 
     if (!file) {

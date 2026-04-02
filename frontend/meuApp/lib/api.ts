@@ -1,11 +1,13 @@
 import { Platform } from 'react-native';
+import { clearCurrentSession, getAccessToken } from './sessionStore';
+import type { ApiSession, ApiUser } from './contracts';
 
-export interface ApiUser {
-  id: number;
-  name: string;
-  email: string;
-  cpf: string;
-  friendCode: string;
+export type { ApiSession, ApiUser } from './contracts';
+
+export interface ForgotPasswordResponse {
+  message: string;
+  resetTokenPreview?: string;
+  expiresAt?: string;
 }
 
 export interface ApiProgressStats {
@@ -44,6 +46,11 @@ export interface ApiTask {
 }
 
 const getBaseUrl = () => {
+  const configuredBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL?.trim();
+  if (configuredBaseUrl) {
+    return configuredBaseUrl;
+  }
+
   if (Platform.OS === 'android') {
     return 'http://10.0.2.2:3000';
   }
@@ -59,12 +66,24 @@ const ensureValidUserId = (userId: number) => {
   }
 };
 
+const buildHeaders = (headers?: HeadersInit, includeJsonContentType = true) => {
+  const requestHeaders = new Headers(headers);
+
+  if (includeJsonContentType && !requestHeaders.has('Content-Type')) {
+    requestHeaders.set('Content-Type', 'application/json');
+  }
+
+  const accessToken = getAccessToken();
+  if (accessToken) {
+    requestHeaders.set('Authorization', `Bearer ${accessToken}`);
+  }
+
+  return requestHeaders;
+};
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options?.headers ?? {}),
-    },
+    headers: buildHeaders(options?.headers),
     ...options,
   });
 
@@ -75,6 +94,10 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
       message = data.message ?? message;
     } catch (_error) {
       // Keep default error message when body is not JSON.
+    }
+
+    if (response.status === 401) {
+      await clearCurrentSession();
     }
 
     throw new Error(message);
@@ -88,15 +111,29 @@ export async function apiRegisterUser(payload: {
   email: string;
   password: string;
   cpf: string;
-}): Promise<ApiUser> {
-  return request<ApiUser>('/users', {
+}): Promise<ApiSession> {
+  return request<ApiSession>('/users', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
 }
 
-export async function apiLogin(payload: { email: string; password: string }): Promise<ApiUser> {
-  return request<ApiUser>('/users/login', {
+export async function apiLogin(payload: { email: string; password: string }): Promise<ApiSession> {
+  return request<ApiSession>('/users/login', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function apiForgotPassword(email: string): Promise<ForgotPasswordResponse> {
+  return request<ForgotPasswordResponse>('/users/forgot-password', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  });
+}
+
+export async function apiResetPassword(payload: { token: string; newPassword: string }) {
+  return request<{ message: string }>('/users/reset-password', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
@@ -172,6 +209,7 @@ export async function apiUploadTaskPhoto(
 
   const response = await fetch(`${API_BASE_URL}/users/${userId}/tasks/upload`, {
     method: 'POST',
+    headers: buildHeaders(undefined, false),
     body: formData,
   });
 
@@ -182,6 +220,10 @@ export async function apiUploadTaskPhoto(
       message = data.message ?? message;
     } catch (_error) {
       // Keep default message.
+    }
+
+    if (response.status === 401) {
+      await clearCurrentSession();
     }
 
     throw new Error(message);

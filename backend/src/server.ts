@@ -1,32 +1,13 @@
 import 'dotenv/config';
-import express from 'express';
-import cors from 'cors';
 import mysql from 'mysql2/promise';
 import fs from 'node:fs';
 import path from 'node:path';
 
+import app from './app';
 import sequelize from './config/database';
-import userRoutes from './routes/userRoutes';
-import admRoutes from './routes/admRoutes';
-import './models/userModels';
-import './models/admModels';
-import './models/userFriendModels';
-import './models/taskModels';
 
-const app = express();
 const PORT = Number(process.env.PORT || 3000);
 const uploadsDir = path.resolve(process.cwd(), 'uploads');
-
-app.use(cors());
-app.use(express.json());
-app.use('/uploads', express.static(uploadsDir));
-
-app.get('/health', (_req, res) => {
-  res.json({ status: 'ok' });
-});
-
-app.use('/users', userRoutes);
-app.use('/adms', admRoutes);
 
 const ensureDatabaseExists = async () => {
   const dbHost = process.env.DB_HOST || 'localhost';
@@ -57,7 +38,16 @@ const startServer = async () => {
     fs.mkdirSync(uploadsDir, { recursive: true });
     await ensureDatabaseExists();
     await sequelize.authenticate();
-    await sequelize.sync({ alter: true });
+
+    const syncMode = process.env.DB_SYNC_MODE || (process.env.NODE_ENV === 'production' ? 'safe' : 'alter');
+
+    if (syncMode === 'force') {
+      await sequelize.sync({ force: true });
+    } else if (syncMode === 'alter') {
+      await sequelize.sync({ alter: true });
+    } else {
+      await sequelize.sync();
+    }
 
     app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);

@@ -9,12 +9,11 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { apiLogin } from '@/lib/api';
-import { setCurrentUser } from '@/lib/sessionStore';
+import { loadCurrentSession, setCurrentSession } from '@/lib/sessionStore';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -24,6 +23,15 @@ export default function LoginScreen() {
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [formError, setFormError] = useState('');
+
+  React.useEffect(() => {
+    void (async () => {
+      const currentSession = await loadCurrentSession();
+      if (currentSession) {
+        router.replace('/dashboard');
+      }
+    })();
+  }, [router]);
 
   const handleLogin = async () => {
     setEmailError('');
@@ -44,15 +52,13 @@ export default function LoginScreen() {
 
     try {
       setIsLoading(true);
-      const user = await apiLogin({ email: email.trim(), password: password.trim() });
-      await setCurrentUser(user);
+      const session = await apiLogin({ email: email.trim(), password: password.trim() });
+      await setCurrentSession(session);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Falha ao entrar.';
 
-      if (message.toLowerCase().includes('email nao cadastrado')) {
-        setEmailError('E-mail nao cadastrado');
-      } else if (message.toLowerCase().includes('senha incorreta')) {
-        setPasswordError('Senha incorreta');
+      if (message.toLowerCase().includes('credenciais invalidas')) {
+        setFormError('E-mail ou senha invalidos');
       } else {
         setFormError(message);
       }

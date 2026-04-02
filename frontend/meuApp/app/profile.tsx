@@ -12,7 +12,7 @@ import {
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { apiAddFriendByCode, apiGetFriends, apiGetUserById, type ApiUserProfile } from '@/lib/api';
-import { getCurrentUser, loadCurrentUser } from '@/lib/sessionStore';
+import { clearCurrentSession, getCurrentUser, loadCurrentUser } from '@/lib/sessionStore';
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -26,8 +26,8 @@ export default function ProfileScreen() {
   const loadProfile = React.useCallback(async () => {
     const user = getCurrentUser() ?? (await loadCurrentUser());
     if (!user) {
-      setCurrentUserCode('Nao disponivel');
-      setUserProfile(null);
+      await clearCurrentSession();
+      router.replace('/login');
       return;
     }
 
@@ -44,10 +44,17 @@ export default function ProfileScreen() {
       setCurrentUserCode(refreshedUser.friendCode);
       setUserProfile(refreshedUser);
       setFriends(fetchedFriends.map((friend) => `${friend.name} (${friend.friendCode})`));
-    } catch (_error) {
-      Alert.alert('Erro', 'Nao foi possivel carregar sua lista de amigos.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Nao foi possivel carregar sua lista de amigos.';
+      if (message.toLowerCase().includes('token') || message.toLowerCase().includes('auth')) {
+        await clearCurrentSession();
+        router.replace('/login');
+        return;
+      }
+
+      Alert.alert('Erro', message);
     }
-  }, []);
+  }, [router]);
 
   React.useEffect(() => {
     void loadProfile();
@@ -73,10 +80,21 @@ export default function ProfileScreen() {
       Alert.alert('Amigo adicionado', `${addedFriend.name} agora faz parte da sua lista.`);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Nao foi possivel adicionar amigo.';
+      if (message.toLowerCase().includes('token') || message.toLowerCase().includes('auth')) {
+        await clearCurrentSession();
+        router.replace('/login');
+        return;
+      }
+
       Alert.alert('Erro', message);
     } finally {
       setIsAddingFriend(false);
     }
+  };
+
+  const handleLogout = async () => {
+    await clearCurrentSession();
+    router.replace('/login');
   };
 
   return (
@@ -151,6 +169,10 @@ export default function ProfileScreen() {
               ))}
             </View>
           ) : null}
+
+          <TouchableOpacity style={styles.logoutButton} onPress={() => void handleLogout()}>
+            <Text style={styles.logoutButtonText}>Sair da conta</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={{ height: 80 }} />
@@ -368,6 +390,19 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#333',
     marginBottom: 2,
+  },
+  logoutButton: {
+    width: '82%',
+    backgroundColor: '#111827',
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  logoutButtonText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
   },
   bottomNav: {
     position: 'absolute',

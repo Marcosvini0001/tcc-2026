@@ -4,6 +4,8 @@ import path from 'node:path';
 import {
   createUser,
   loginUser,
+  forgotPassword,
+  resetPassword,
   getAllUsers,
   getRanking,
   getUserById,
@@ -17,6 +19,7 @@ import {
   completeTask,
   analyzeTaskPhoto,
 } from '../controllers/userController';
+import { requireAdmin, requireAuth, requireUserAccess } from '../middleware/authMiddleware';
 
 const router = Router();
 
@@ -40,17 +43,22 @@ const upload = multer({
 
 router.post('/', createUser);
 router.post('/login', loginUser);
-router.get('/', getAllUsers);
+router.post('/forgot-password', forgotPassword);
+router.post('/reset-password', resetPassword);
 router.get('/ranking', getRanking);
-router.get('/:id', getUserById);
-router.put('/:id', updateUser);
-router.delete('/:id', deleteUser);
-router.post('/:id/friends', addFriendByCode);
-router.get('/:id/friends', getUserFriends);
-router.post('/:id/tasks', createTask);
-router.post('/:id/tasks/upload', upload.single('photo'), createTaskByUpload);
-router.get('/:id/tasks', getUserTasks);
-router.patch('/:id/tasks/:taskId/complete', completeTask);
-router.post('/:id/tasks/:taskId/analyze', analyzeTaskPhoto);
+
+router.use(requireAuth());
+
+router.get('/', requireAdmin, getAllUsers);
+router.get('/:id', requireUserAccess, getUserById);
+router.put('/:id', requireUserAccess, updateUser);
+router.delete('/:id', requireUserAccess, deleteUser);
+router.post('/:id/friends', requireUserAccess, addFriendByCode);
+router.get('/:id/friends', requireUserAccess, getUserFriends);
+router.post('/:id/tasks', requireUserAccess, createTask);
+router.post('/:id/tasks/upload', requireUserAccess, upload.single('photo'), createTaskByUpload);
+router.get('/:id/tasks', requireUserAccess, getUserTasks);
+router.patch('/:id/tasks/:taskId/complete', requireUserAccess, completeTask);
+router.post('/:id/tasks/:taskId/analyze', requireUserAccess, analyzeTaskPhoto);
 
 export default router;

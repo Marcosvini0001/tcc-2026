@@ -12,19 +12,70 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { apiForgotPassword, apiResetPassword } from '@/lib/api';
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
   const [email, setEmail] = useState('');
+  const [token, setToken] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [previewToken, setPreviewToken] = useState('');
+  const [requestSent, setRequestSent] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleResetPassword = () => {
+  const handleRequestReset = async () => {
     if (!email.trim()) {
       Alert.alert('Campo obrigatorio', 'Informe seu e-mail para recuperar a senha.');
       return;
     }
 
-    Alert.alert('Solicitacao enviada', 'Enviamos instrucoes para recuperar sua senha.');
-    router.replace('/login');
+    try {
+      setIsSubmitting(true);
+      const response = await apiForgotPassword(email.trim());
+      setRequestSent(true);
+      setPreviewToken(response.resetTokenPreview ?? '');
+      if (response.resetTokenPreview) {
+        setToken(response.resetTokenPreview);
+      }
+      Alert.alert('Solicitacao enviada', response.message);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Nao foi possivel solicitar a redefinicao.';
+      Alert.alert('Erro', message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!token.trim() || !newPassword.trim() || !confirmPassword.trim()) {
+      Alert.alert('Campos obrigatorios', 'Preencha token, nova senha e confirmacao.');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      Alert.alert('Senhas diferentes', 'A confirmacao precisa ser igual a nova senha.');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      const response = await apiResetPassword({
+        token: token.trim(),
+        newPassword: newPassword.trim(),
+      });
+      Alert.alert('Senha redefinida', response.message, [
+        {
+          text: 'OK',
+          onPress: () => router.replace('/login'),
+        },
+      ]);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Nao foi possivel redefinir a senha.';
+      Alert.alert('Erro', message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -49,9 +100,77 @@ export default function ForgotPasswordScreen() {
             />
           </View>
 
-          <TouchableOpacity style={styles.primaryButton} onPress={handleResetPassword} activeOpacity={0.8}>
-            <Text style={styles.primaryButtonText}>Enviar</Text>
+          <TouchableOpacity
+            style={[styles.primaryButton, isSubmitting && styles.disabledButton]}
+            onPress={() => void handleRequestReset()}
+            activeOpacity={0.8}
+            disabled={isSubmitting}>
+            <Text style={styles.primaryButtonText}>
+              {isSubmitting ? 'Enviando...' : requestSent ? 'Reenviar instrucoes' : 'Enviar'}
+            </Text>
           </TouchableOpacity>
+
+          {requestSent ? (
+            <View style={styles.resetCard}>
+              <Text style={styles.resetTitle}>Definir nova senha</Text>
+              <Text style={styles.resetHint}>
+                Informe o token recebido e escolha uma nova senha forte.
+              </Text>
+
+              {previewToken ? (
+                <View style={styles.previewTokenBox}>
+                  <Text style={styles.previewTokenLabel}>Token de desenvolvimento</Text>
+                  <Text style={styles.previewTokenValue}>{previewToken}</Text>
+                </View>
+              ) : null}
+
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Token</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Cole o token recebido"
+                  placeholderTextColor="#999"
+                  autoCapitalize="none"
+                  value={token}
+                  onChangeText={setToken}
+                />
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Nova senha</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Nova senha"
+                  placeholderTextColor="#999"
+                  secureTextEntry
+                  value={newPassword}
+                  onChangeText={setNewPassword}
+                />
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Confirmar senha</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Confirme a nova senha"
+                  placeholderTextColor="#999"
+                  secureTextEntry
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                />
+              </View>
+
+              <TouchableOpacity
+                style={[styles.primaryButton, isSubmitting && styles.disabledButton]}
+                onPress={() => void handleResetPassword()}
+                activeOpacity={0.8}
+                disabled={isSubmitting}>
+                <Text style={styles.primaryButtonText}>
+                  {isSubmitting ? 'Redefinindo...' : 'Redefinir senha'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
 
           <TouchableOpacity onPress={() => router.back()} activeOpacity={0.8}>
             <Text style={styles.secondaryAction}>Voltar</Text>
@@ -120,6 +239,46 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     textAlign: 'center',
+  },
+  disabledButton: {
+    opacity: 0.7,
+  },
+  resetCard: {
+    marginTop: 16,
+    borderRadius: 12,
+    backgroundColor: '#fff',
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+  },
+  resetTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 6,
+  },
+  resetHint: {
+    fontSize: 13,
+    color: '#4b5563',
+    marginBottom: 12,
+  },
+  previewTokenBox: {
+    backgroundColor: '#ecfdf5',
+    borderColor: '#86efac',
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 12,
+  },
+  previewTokenLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#166534',
+    marginBottom: 4,
+  },
+  previewTokenValue: {
+    fontSize: 13,
+    color: '#14532d',
   },
   secondaryAction: {
     textAlign: 'center',
