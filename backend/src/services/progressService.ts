@@ -23,6 +23,14 @@ export type UserProgressSummary = TaskProgressSummary & {
 const LEVEL_STEP = 250;
 const FRIEND_BONUS_POINTS = 30;
 
+const toSafeInteger = (value: number) => {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+
+  return Math.max(0, Math.trunc(value));
+};
+
 export const getActivityPoints = (activity: string) => {
   const normalized = activity.toLowerCase();
 
@@ -75,27 +83,35 @@ export const parseScheduledFor = (value: unknown) => {
   return parsedDate;
 };
 
+export const buildTaskProgressSummary = (
+  totalTasks: number,
+  completedTasks: number,
+  taskPoints: number
+): TaskProgressSummary => {
+  const safeTotalTasks = toSafeInteger(totalTasks);
+  const safeCompletedTasks = Math.min(safeTotalTasks, toSafeInteger(completedTasks));
+
+  return {
+    totalTasks: safeTotalTasks,
+    completedTasks: safeCompletedTasks,
+    pendingTasks: Math.max(0, safeTotalTasks - safeCompletedTasks),
+    taskPoints: toSafeInteger(taskPoints),
+  };
+};
+
 export const getTaskProgressSummary = (tasks: ProgressTask[]): TaskProgressSummary => {
-  return tasks.reduce<TaskProgressSummary>(
-    (summary, task) => {
-      summary.totalTasks += 1;
+  return tasks.reduce<TaskProgressSummary>((summary, task) => {
+    summary.totalTasks += 1;
 
-      if (task.completed) {
-        summary.completedTasks += 1;
-        summary.taskPoints += task.points;
-      } else {
-        summary.pendingTasks += 1;
-      }
-
-      return summary;
-    },
-    {
-      totalTasks: 0,
-      completedTasks: 0,
-      pendingTasks: 0,
-      taskPoints: 0,
+    if (task.completed) {
+      summary.completedTasks += 1;
+      summary.taskPoints += task.points;
+    } else {
+      summary.pendingTasks += 1;
     }
-  );
+
+    return summary;
+  }, buildTaskProgressSummary(0, 0, 0));
 };
 
 export const getLevelSummary = (points: number) => {
@@ -118,6 +134,13 @@ export const getUserProgressSummary = (
   friendsCount: number
 ): UserProgressSummary => {
   const taskSummary = getTaskProgressSummary(tasks);
+  return getUserProgressSummaryFromStats(taskSummary, friendsCount);
+};
+
+export const getUserProgressSummaryFromStats = (
+  taskSummary: TaskProgressSummary,
+  friendsCount: number
+): UserProgressSummary => {
   const friendBonusPoints = Math.max(0, friendsCount) * FRIEND_BONUS_POINTS;
   const points = taskSummary.taskPoints + friendBonusPoints;
 

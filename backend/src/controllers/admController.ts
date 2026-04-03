@@ -7,11 +7,7 @@ import {
   validatePasswordStrength,
   verifyPassword,
 } from '../services/authService';
-
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-const normalizeText = (value: unknown) => String(value ?? '').trim();
-const normalizeEmail = (value: unknown) => normalizeText(value).toLowerCase();
+import { EMAIL_REGEX, normalizeEmail, normalizeText } from '../utils/validation';
 
 export const createAdm = async (req: Request, res: Response) => {
   try {

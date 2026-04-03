@@ -38,6 +38,7 @@ export default function WelcomeScreen() {
         {/* Button */}
         <TouchableOpacity
           style={styles.button}
+          testID="welcome-start-button"
           onPress={handleStartPress}
           activeOpacity={0.8}>
           <Text style={styles.buttonText}>Começar</Text>

@@ -12,6 +12,7 @@ import {
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { apiAddFriendByCode, apiGetFriends, apiGetUserById, type ApiUserProfile } from '@/lib/api';
+import { getErrorMessage, redirectToLoginOnAuthError } from '@/lib/errorHandling';
 import { clearCurrentSession, getCurrentUser, loadCurrentUser } from '@/lib/sessionStore';
 
 export default function ProfileScreen() {
@@ -45,10 +46,8 @@ export default function ProfileScreen() {
       setUserProfile(refreshedUser);
       setFriends(fetchedFriends.map((friend) => `${friend.name} (${friend.friendCode})`));
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Nao foi possivel carregar sua lista de amigos.';
-      if (message.toLowerCase().includes('token') || message.toLowerCase().includes('auth')) {
-        await clearCurrentSession();
-        router.replace('/login');
+      const message = getErrorMessage(error, 'Nao foi possivel carregar sua lista de amigos.');
+      if (await redirectToLoginOnAuthError(message, router)) {
         return;
       }
 
@@ -79,10 +78,8 @@ export default function ProfileScreen() {
       setFriendCodeInput('');
       Alert.alert('Amigo adicionado', `${addedFriend.name} agora faz parte da sua lista.`);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Nao foi possivel adicionar amigo.';
-      if (message.toLowerCase().includes('token') || message.toLowerCase().includes('auth')) {
-        await clearCurrentSession();
-        router.replace('/login');
+      const message = getErrorMessage(error, 'Nao foi possivel adicionar amigo.');
+      if (await redirectToLoginOnAuthError(message, router)) {
         return;
       }
 
@@ -148,13 +145,14 @@ export default function ProfileScreen() {
           <View style={styles.addFriendContainer}>
             <TextInput
               style={styles.addFriendInput}
+              testID="profile-friend-code-input"
               value={friendCodeInput}
               onChangeText={setFriendCodeInput}
               placeholder="Digite o codigo do amigo"
               placeholderTextColor="#888"
               keyboardType="number-pad"
             />
-            <TouchableOpacity style={styles.addFriendButton} onPress={() => void handleAddFriend()}>
+            <TouchableOpacity style={styles.addFriendButton} testID="profile-add-friend-button" onPress={() => void handleAddFriend()}>
               <Text style={styles.addFriendButtonText}>{isAddingFriend ? 'Adicionando...' : 'Adicionar'}</Text>
             </TouchableOpacity>
           </View>
@@ -170,7 +168,7 @@ export default function ProfileScreen() {
             </View>
           ) : null}
 
-          <TouchableOpacity style={styles.logoutButton} onPress={() => void handleLogout()}>
+          <TouchableOpacity style={styles.logoutButton} testID="profile-logout-button" onPress={() => void handleLogout()}>
             <Text style={styles.logoutButtonText}>Sair da conta</Text>
           </TouchableOpacity>
         </View>
@@ -179,19 +177,19 @@ export default function ProfileScreen() {
       </ScrollView>
 
       <View style={styles.bottomNav}>
-        <TouchableOpacity style={styles.navItem} onPress={() => router.push('/dashboard')}>
+        <TouchableOpacity style={styles.navItem} testID="profile-nav-home" onPress={() => router.push('/dashboard')}>
           <Text style={styles.navIcon}>🏠</Text>
           <Text style={styles.navLabel}>Home</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => router.push('/dashboard')}>
+        <TouchableOpacity style={styles.navItem} testID="profile-nav-tasks" onPress={() => router.push('/dashboard')}>
           <Text style={styles.navIcon}>✓</Text>
           <Text style={styles.navLabel}>Tarefas</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => router.push('/ranking')}>
+        <TouchableOpacity style={styles.navItem} testID="profile-nav-ranking" onPress={() => router.push('/ranking')}>
           <Text style={styles.navIcon}>🏆</Text>
           <Text style={styles.navLabel}>Ranking</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => router.push('/profile')}>
+        <TouchableOpacity style={styles.navItem} testID="profile-nav-profile" onPress={() => router.push('/profile')}>
           <Text style={styles.navIcon}>👤</Text>
           <Text style={styles.navLabel}>Perfil</Text>
         </TouchableOpacity>

@@ -12,7 +12,8 @@ import {
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { apiGetRanking, type ApiRankingUser, type ApiUser } from '@/lib/api';
-import { clearCurrentSession, getCurrentUser, loadCurrentUser } from '@/lib/sessionStore';
+import { getErrorMessage, redirectToLoginOnAuthError } from '@/lib/errorHandling';
+import { getCurrentUser, loadCurrentUser } from '@/lib/sessionStore';
 
 export default function RankingScreen() {
   const router = useRouter();
@@ -38,10 +39,8 @@ export default function RankingScreen() {
       const data = await apiGetRanking();
       setRanking(data);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Falha ao carregar ranking.';
-      if (message.toLowerCase().includes('token') || message.toLowerCase().includes('auth')) {
-        await clearCurrentSession();
-        router.replace('/login');
+      const message = getErrorMessage(error, 'Falha ao carregar ranking.');
+      if (await redirectToLoginOnAuthError(message, router)) {
         return;
       }
 
@@ -59,7 +58,7 @@ export default function RankingScreen() {
     const isCurrentUser = currentUser?.id === item.id;
 
     return (
-      <View style={[styles.friendCard, isCurrentUser && styles.currentUserCard]}>
+      <View style={[styles.friendCard, isCurrentUser && styles.currentUserCard]} testID={`ranking-card-${item.id}`}>
         <View style={styles.rankContainer}>
           <Text style={styles.rankText}>{item.rank}º</Text>
         </View>
@@ -125,12 +124,13 @@ export default function RankingScreen() {
           <>
             <TouchableOpacity
               style={styles.testButton}
+              testID="ranking-view-profile-button"
               onPress={() => router.push('/profile')}
               activeOpacity={0.8}>
               <Text style={styles.testButtonText}>Ver perfil</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.refreshButton} onPress={() => void loadRanking()}>
+            <TouchableOpacity style={styles.refreshButton} testID="ranking-refresh-button" onPress={() => void loadRanking()}>
               <Text style={styles.refreshButtonText}>Atualizar ranking</Text>
             </TouchableOpacity>
 
@@ -140,19 +140,19 @@ export default function RankingScreen() {
       />
 
       <View style={styles.bottomNav}>
-        <TouchableOpacity style={styles.navItem} onPress={() => router.push('/dashboard')}>
+        <TouchableOpacity style={styles.navItem} testID="ranking-nav-home" onPress={() => router.push('/dashboard')}>
           <Text style={styles.navIcon}>🏠</Text>
           <Text style={styles.navLabel}>Home</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => router.push('/dashboard')}>
+        <TouchableOpacity style={styles.navItem} testID="ranking-nav-tasks" onPress={() => router.push('/dashboard')}>
           <Text style={styles.navIcon}>✓</Text>
           <Text style={styles.navLabel}>Tarefas</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => router.push('/ranking')}>
+        <TouchableOpacity style={styles.navItem} testID="ranking-nav-ranking" onPress={() => router.push('/ranking')}>
           <Text style={styles.navIcon}>🏆</Text>
           <Text style={styles.navLabel}>Ranking</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => router.push('/profile')}>
+        <TouchableOpacity style={styles.navItem} testID="ranking-nav-profile" onPress={() => router.push('/profile')}>
           <Text style={styles.navIcon}>👤</Text>
           <Text style={styles.navLabel}>Perfil</Text>
         </TouchableOpacity>

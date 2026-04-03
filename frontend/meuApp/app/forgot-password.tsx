@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { apiForgotPassword, apiResetPassword } from '@/lib/api';
+import { validatePasswordStrength } from '@/lib/passwordStrength';
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
@@ -58,6 +59,12 @@ export default function ForgotPasswordScreen() {
       return;
     }
 
+    const passwordValidation = validatePasswordStrength(newPassword.trim());
+    if (passwordValidation) {
+      Alert.alert('Senha invalida', passwordValidation);
+      return;
+    }
+
     try {
       setIsSubmitting(true);
       const response = await apiResetPassword({
@@ -91,6 +98,7 @@ export default function ForgotPasswordScreen() {
             <Text style={styles.inputLabel}>E-mail</Text>
             <TextInput
               style={styles.input}
+              testID="forgot-email-input"
               placeholder="seuemail@exemplo.com"
               placeholderTextColor="#999"
               keyboardType="email-address"
@@ -102,6 +110,7 @@ export default function ForgotPasswordScreen() {
 
           <TouchableOpacity
             style={[styles.primaryButton, isSubmitting && styles.disabledButton]}
+            testID="forgot-request-button"
             onPress={() => void handleRequestReset()}
             activeOpacity={0.8}
             disabled={isSubmitting}>
@@ -117,10 +126,10 @@ export default function ForgotPasswordScreen() {
                 Informe o token recebido e escolha uma nova senha forte.
               </Text>
 
-              {previewToken ? (
+              {__DEV__ && previewToken ? (
                 <View style={styles.previewTokenBox}>
                   <Text style={styles.previewTokenLabel}>Token de desenvolvimento</Text>
-                  <Text style={styles.previewTokenValue}>{previewToken}</Text>
+                  <Text style={styles.previewTokenValue} testID="forgot-preview-token">{previewToken}</Text>
                 </View>
               ) : null}
 
@@ -128,6 +137,7 @@ export default function ForgotPasswordScreen() {
                 <Text style={styles.inputLabel}>Token</Text>
                 <TextInput
                   style={styles.input}
+                  testID="forgot-token-input"
                   placeholder="Cole o token recebido"
                   placeholderTextColor="#999"
                   autoCapitalize="none"
@@ -140,6 +150,7 @@ export default function ForgotPasswordScreen() {
                 <Text style={styles.inputLabel}>Nova senha</Text>
                 <TextInput
                   style={styles.input}
+                  testID="forgot-new-password-input"
                   placeholder="Nova senha"
                   placeholderTextColor="#999"
                   secureTextEntry
@@ -152,6 +163,7 @@ export default function ForgotPasswordScreen() {
                 <Text style={styles.inputLabel}>Confirmar senha</Text>
                 <TextInput
                   style={styles.input}
+                  testID="forgot-confirm-password-input"
                   placeholder="Confirme a nova senha"
                   placeholderTextColor="#999"
                   secureTextEntry
@@ -162,6 +174,7 @@ export default function ForgotPasswordScreen() {
 
               <TouchableOpacity
                 style={[styles.primaryButton, isSubmitting && styles.disabledButton]}
+                testID="forgot-reset-button"
                 onPress={() => void handleResetPassword()}
                 activeOpacity={0.8}
                 disabled={isSubmitting}>
@@ -172,7 +185,7 @@ export default function ForgotPasswordScreen() {
             </View>
           ) : null}
 
-          <TouchableOpacity onPress={() => router.back()} activeOpacity={0.8}>
+          <TouchableOpacity onPress={() => router.back()} activeOpacity={0.8} testID="forgot-back-button">
             <Text style={styles.secondaryAction}>Voltar</Text>
           </TouchableOpacity>
         </ScrollView>

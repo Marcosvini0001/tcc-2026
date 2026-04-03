@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { Op } from 'sequelize';
+import { Op, col, fn, literal } from 'sequelize';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import sequelize from '../config/database';
@@ -20,25 +20,16 @@ import {
   isPasswordResetExpired,
 } from '../services/passwordResetService';
 import {
+  buildTaskProgressSummary,
   getActivityPoints,
-  getUserProgressSummary,
+  getUserProgressSummaryFromStats,
   parseScheduledFor,
 } from '../services/progressService';
+import { EMAIL_REGEX, normalizeCpf, normalizeEmail, normalizeText } from '../utils/validation';
 
 type UploadedTaskFile = {
   filename: string;
 };
-
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-const normalizeText = (value: unknown) => String(value ?? '').trim();
-const normalizeEmail = (value: unknown) => normalizeText(value).toLowerCase();
-const normalizeCpf = (value: unknown) => normalizeText(value).replace(/\D/g, '');
-
-const mapTaskToProgressTask = (task: Task) => ({
-  completed: Boolean(task.get('completed')),
-  points: Number(task.get('points') ?? 0),
-});
 
 const getMimeTypeByExtension = (filename: string) => {
   const ext = path.extname(filename).toLowerCase();
@@ -60,6 +51,11 @@ const generateFriendCode = async (): Promise<string> => {
       return code;
     }
   }
+};
+
+const toSafeNumber = (value: unknown) => {
+  const parsedValue = Number(value);
+  return Number.isFinite(parsedValue) ? parsedValue : 0;
 };
 
 export const createUser = async (req: Request, res: Response) => {
@@ -265,36 +261,62 @@ export const getAllUsers = async (req: Request, res: Response) => {
 
 export const getRanking = async (_req: Request, res: Response) => {
   try {
-    const [users, relations, tasks] = await Promise.all([
+    const [users, relations, taskStats] = await Promise.all([
       User.findAll({
         attributes: ['id', 'name'],
         order: [['createdAt', 'ASC']],
       }),
-      UserFriend.findAll({ attributes: ['userId'] }),
-      Task.findAll({ attributes: ['userId', 'points', 'completed'] }),
+      UserFriend.findAll({
+        attributes: ['userId', [fn('COUNT', col('friendId')), 'friendsCount']],
+        group: ['userId'],
+        raw: true,
+      }),
+      Task.findAll({
+        attributes: [
+          'userId',
+          [fn('COUNT', col('id')), 'totalTasks'],
+          [fn('SUM', literal('CASE WHEN completed = 1 THEN 1 ELSE 0 END')), 'completedTasks'],
+          [fn('SUM', literal('CASE WHEN completed = 1 THEN points ELSE 0 END')), 'taskPoints'],
+        ],
+        group: ['userId'],
+        raw: true,
+      }),
     ]);
 
     const friendsCountMap = new Map<number, number>();
-    const tasksByUserMap = new Map<number, Task[]>();
+    const taskSummaryByUserMap = new Map<number, ReturnType<typeof buildTaskProgressSummary>>();
 
     relations.forEach((relation) => {
-      const count = friendsCountMap.get(relation.userId) ?? 0;
-      friendsCountMap.set(relation.userId, count + 1);
+      const relationUserId = toSafeNumber((relation as { userId?: unknown }).userId);
+      const friendsCount = toSafeNumber((relation as { friendsCount?: unknown }).friendsCount);
+      friendsCountMap.set(relationUserId, friendsCount);
     });
 
-    tasks.forEach((task) => {
-      const userId = Number(task.get('userId'));
-      const existingTasks = tasksByUserMap.get(userId) ?? [];
-      existingTasks.push(task);
-      tasksByUserMap.set(userId, existingTasks);
+    taskStats.forEach((taskStat) => {
+      const rawTaskStat = taskStat as {
+        userId?: unknown;
+        totalTasks?: unknown;
+        completedTasks?: unknown;
+        taskPoints?: unknown;
+      };
+      const userId = toSafeNumber(rawTaskStat.userId);
+
+      taskSummaryByUserMap.set(
+        userId,
+        buildTaskProgressSummary(
+          toSafeNumber(rawTaskStat.totalTasks),
+          toSafeNumber(rawTaskStat.completedTasks),
+          toSafeNumber(rawTaskStat.taskPoints)
+        )
+      );
     });
 
     const ranking = users
       .map((user) => {
         const userId = user.get('id') as number;
         const friendsCount = friendsCountMap.get(userId) ?? 0;
-        const summary = getUserProgressSummary(
-          (tasksByUserMap.get(userId) ?? []).map((task) => mapTaskToProgressTask(task)),
+        const summary = getUserProgressSummaryFromStats(
+          taskSummaryByUserMap.get(userId) ?? buildTaskProgressSummary(0, 0, 0),
           friendsCount
         );
 
@@ -340,14 +362,21 @@ export const getUserById = async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    const [relations, tasks] = await Promise.all([
-      UserFriend.findAll({ where: { userId: user.get('id') as number }, attributes: ['userId'] }),
-      Task.findAll({ where: { userId: user.get('id') as number } }),
+    const userId = user.get('id') as number;
+
+    const [friendsCount, totalTasks, completedTasks, taskPoints] = await Promise.all([
+      UserFriend.count({ where: { userId } }),
+      Task.count({ where: { userId } }),
+      Task.count({ where: { userId, completed: true } }),
+      Task.sum('points', { where: { userId, completed: true } }),
     ]);
 
     return res.json({
       ...sanitizeUser(user),
-      ...getUserProgressSummary(tasks.map((task) => mapTaskToProgressTask(task)), relations.length),
+      ...getUserProgressSummaryFromStats(
+        buildTaskProgressSummary(totalTasks, completedTasks, toSafeNumber(taskPoints)),
+        friendsCount
+      ),
     });
   } catch (error) {
     console.error('Error fetching user:', error);

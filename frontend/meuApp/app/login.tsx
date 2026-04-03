@@ -104,6 +104,7 @@ export default function LoginScreen() {
             <Text style={styles.inputLabel}>✉️</Text>
             <TextInput
               style={styles.input}
+              testID="login-email-input"
               placeholder="E-mail"
               placeholderTextColor="#999"
               keyboardType="email-address"
@@ -122,6 +123,7 @@ export default function LoginScreen() {
             <Text style={styles.inputLabel}>🔒</Text>
             <TextInput
               style={styles.input}
+              testID="login-password-input"
               placeholder="Senha"
               placeholderTextColor="#999"
               secureTextEntry
@@ -137,13 +139,14 @@ export default function LoginScreen() {
           {formError ? <Text style={styles.errorText}>{formError}</Text> : null}
 
           {/* Forgot Password Link */}
-          <TouchableOpacity onPress={handleForgotPassword}>
+          <TouchableOpacity onPress={handleForgotPassword} testID="login-forgot-password-link">
             <Text style={styles.forgotPassword}>Esqueceu a senha?</Text>
           </TouchableOpacity>
 
           {/* Login Button */}
           <TouchableOpacity
             style={[styles.loginButton, isLoading && styles.disabledButton]}
+            testID="login-submit-button"
             onPress={handleLogin}
             activeOpacity={0.8}
             disabled={isLoading}>
@@ -160,6 +163,7 @@ export default function LoginScreen() {
           {/* Register Button */}
           <TouchableOpacity
             style={styles.registerButton}
+            testID="login-register-button"
             onPress={handleRegister}
             activeOpacity={0.8}>
             <Text style={styles.registerButtonText}>Cadastrar</Text>

@@ -8,9 +8,10 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
+    "web:e2e": "expo start --web --port 8081",
     "lint": "expo lint",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "node ./scripts/run-e2e.js",
+    "test:open": "node ./scripts/run-e2e.js --open"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -43,10 +44,12 @@
   },
   "devDependencies": {
     "@types/react": "~19.1.0",
+    "cypress": "^15.5.0",
     "eslint": "^9.25.0",
     "eslint-config-expo": "~10.0.0",
+    "tree-kill": "^1.2.2",
     "typescript": "~5.9.2",
-    "vitest": "^3.2.4"
+    "wait-on": "^8.0.5"
   },
   "private": true
 }

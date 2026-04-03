@@ -60,6 +60,14 @@ Task.init(
     sequelize,
     tableName: 'tasks',
     timestamps: true,
+    indexes: [
+      {
+        fields: ['userId'],
+      },
+      {
+        fields: ['userId', 'completed'],
+      },
+    ],
   }
 );
 

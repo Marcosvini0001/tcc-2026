@@ -13,6 +13,11 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { apiRegisterUser } from '@/lib/api';
+import {
+  getPasswordLevel,
+  getPasswordScore,
+  validatePasswordStrength,
+} from '@/lib/passwordStrength';
 import { loadCurrentSession, setCurrentSession } from '@/lib/sessionStore';
 
 export default function RegisterScreen() {
@@ -27,28 +32,6 @@ export default function RegisterScreen() {
   const [passwordError, setPasswordError] = useState('');
   const [cpfError, setCpfError] = useState('');
   const [formError, setFormError] = useState('');
-
-  const getPasswordLevel = (value: string) => {
-    let score = 0;
-
-    if (value.length >= 8) score += 1;
-    if (/[A-Z]/.test(value) && /[a-z]/.test(value)) score += 1;
-    if (/\d/.test(value)) score += 1;
-    if (/[^A-Za-z0-9]/.test(value)) score += 1;
-
-    if (score <= 1) return 'fraca';
-    if (score <= 3) return 'media';
-    return 'forte';
-  };
-
-  const getPasswordScore = (value: string) => {
-    let score = 0;
-    if (value.length >= 8) score += 1;
-    if (/[A-Z]/.test(value) && /[a-z]/.test(value)) score += 1;
-    if (/\d/.test(value)) score += 1;
-    if (/[^A-Za-z0-9]/.test(value)) score += 1;
-    return score;
-  };
 
   const passwordLevel = getPasswordLevel(password);
   const passwordScore = getPasswordScore(password);
@@ -80,13 +63,9 @@ export default function RegisterScreen() {
       return;
     }
 
-    if (password.length < 8) {
-      setPasswordError('A senha deve ter no minimo 8 caracteres');
-      return;
-    }
-
-    if (passwordLevel === 'fraca') {
-      setPasswordError('Senha fraca: use letras maiusculas, numeros e simbolos');
+    const passwordValidation = validatePasswordStrength(password);
+    if (passwordValidation) {
+      setPasswordError(passwordValidation);
       return;
     }
 
@@ -134,6 +113,7 @@ export default function RegisterScreen() {
             <Text style={styles.inputLabel}>Nome</Text>
             <TextInput
               style={styles.input}
+              testID="register-name-input"
               placeholder="Seu nome"
               placeholderTextColor="#999"
               value={name}
@@ -150,6 +130,7 @@ export default function RegisterScreen() {
             <Text style={styles.inputLabel}>E-mail</Text>
             <TextInput
               style={styles.input}
+              testID="register-email-input"
               placeholder="seuemail@exemplo.com"
               placeholderTextColor="#999"
               keyboardType="email-address"
@@ -168,6 +149,7 @@ export default function RegisterScreen() {
             <Text style={styles.inputLabel}>Senha</Text>
             <TextInput
               style={styles.input}
+              testID="register-password-input"
               placeholder="********"
               placeholderTextColor="#999"
               secureTextEntry
@@ -197,6 +179,7 @@ export default function RegisterScreen() {
             <Text style={styles.inputLabel}>CPF</Text>
             <TextInput
               style={styles.input}
+              testID="register-cpf-input"
               placeholder="Somente numeros"
               placeholderTextColor="#999"
               keyboardType="number-pad"
@@ -213,13 +196,14 @@ export default function RegisterScreen() {
 
           <TouchableOpacity
             style={[styles.primaryButton, isLoading && styles.disabledButton]}
+            testID="register-submit-button"
             onPress={handleRegister}
             activeOpacity={0.8}
             disabled={isLoading}>
             <Text style={styles.primaryButtonText}>{isLoading ? 'Cadastrando...' : 'Cadastrar'}</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={() => router.back()} activeOpacity={0.8}>
+          <TouchableOpacity onPress={() => router.back()} activeOpacity={0.8} testID="register-back-button">
             <Text style={styles.secondaryAction}>Voltar para login</Text>
           </TouchableOpacity>
         </ScrollView>

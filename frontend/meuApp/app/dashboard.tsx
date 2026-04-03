@@ -24,7 +24,8 @@ import {
   type ApiUser,
   type ApiUserProfile,
 } from '@/lib/api';
-import { clearCurrentSession, getCurrentUser, loadCurrentUser } from '@/lib/sessionStore';
+import { getErrorMessage, redirectToLoginOnAuthError } from '@/lib/errorHandling';
+import { getCurrentUser, loadCurrentUser } from '@/lib/sessionStore';
 
 const ACTIVITY_SUGGESTIONS = [
   'Estudar por 30 minutos',
@@ -75,10 +76,8 @@ export default function DashboardScreen() {
       const fetchedTasks = await apiGetTasks(currentUser.id);
       setTasks(fetchedTasks);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Falha ao carregar tarefas.';
-      if (message.toLowerCase().includes('token') || message.toLowerCase().includes('auth')) {
-        await clearCurrentSession();
-        router.replace('/login');
+      const message = getErrorMessage(error, 'Falha ao carregar tarefas.');
+      if (await redirectToLoginOnAuthError(message, router)) {
         return;
       }
 
@@ -98,10 +97,8 @@ export default function DashboardScreen() {
       const profile = await apiGetUserById(currentUser.id);
       setUserProfile(profile);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Falha ao carregar progresso.';
-      if (message.toLowerCase().includes('token') || message.toLowerCase().includes('auth')) {
-        await clearCurrentSession();
-        router.replace('/login');
+      const message = getErrorMessage(error, 'Falha ao carregar progresso.');
+      if (await redirectToLoginOnAuthError(message, router)) {
         return;
       }
 
@@ -221,10 +218,8 @@ export default function DashboardScreen() {
         hasPhoto ? 'Tarefa por foto cadastrada com sucesso.' : 'Atividade cadastrada com sucesso.'
       );
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Nao foi possivel cadastrar tarefa.';
-      if (message.toLowerCase().includes('token') || message.toLowerCase().includes('auth')) {
-        await clearCurrentSession();
-        router.replace('/login');
+      const message = getErrorMessage(error, 'Nao foi possivel cadastrar tarefa.');
+      if (await redirectToLoginOnAuthError(message, router)) {
         return;
       }
 
@@ -244,10 +239,8 @@ export default function DashboardScreen() {
       await apiCompleteTask(currentUser.id, taskId);
       await Promise.all([loadTasks(), loadProfile()]);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Nao foi possivel concluir tarefa.';
-      if (message.toLowerCase().includes('token') || message.toLowerCase().includes('auth')) {
-        await clearCurrentSession();
-        router.replace('/login');
+      const message = getErrorMessage(error, 'Nao foi possivel concluir tarefa.');
+      if (await redirectToLoginOnAuthError(message, router)) {
         return;
       }
 
@@ -269,10 +262,8 @@ export default function DashboardScreen() {
       );
       Alert.alert('Analise concluida', updatedTask.analysis || 'Sem detalhes retornados.');
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Nao foi possivel analisar a foto.';
-      if (message.toLowerCase().includes('token') || message.toLowerCase().includes('auth')) {
-        await clearCurrentSession();
-        router.replace('/login');
+      const message = getErrorMessage(error, 'Nao foi possivel analisar a foto.');
+      if (await redirectToLoginOnAuthError(message, router)) {
         return;
       }
 
@@ -296,7 +287,7 @@ export default function DashboardScreen() {
   };
 
   const renderTask = ({ item }: { item: ApiTask }) => (
-    <View style={styles.taskCard}>
+    <View style={styles.taskCard} testID={`dashboard-task-card-${item.id}`}>
       {item.photoUrl ? (
         <Image source={{ uri: item.photoUrl }} style={styles.taskPhoto} contentFit="cover" />
       ) : (
@@ -323,7 +314,7 @@ export default function DashboardScreen() {
         ) : null}
       </View>
       {!item.completed ? (
-        <TouchableOpacity onPress={() => void handleCompleteTask(item.id)} style={styles.concludeButton}>
+        <TouchableOpacity testID={`dashboard-task-complete-${item.id}`} onPress={() => void handleCompleteTask(item.id)} style={styles.concludeButton}>
           <Text style={styles.concludeButtonText}>Concluir</Text>
         </TouchableOpacity>
       ) : (
@@ -402,6 +393,7 @@ export default function DashboardScreen() {
               <Text style={styles.createTaskTitle}>Cadastrar atividade</Text>
 
               <TextInput
+                testID="dashboard-activity-input"
                 value={activityName}
                 onChangeText={setActivityName}
                 placeholder="Ex: Caminhada de 30 minutos"
@@ -427,6 +419,7 @@ export default function DashboardScreen() {
               </View>
 
               <TextInput
+                testID="dashboard-scheduled-input"
                 value={scheduledForInput}
                 onChangeText={setScheduledForInput}
                 placeholder="Data programada (AAAA-MM-DD) opcional"
@@ -449,13 +442,14 @@ export default function DashboardScreen() {
                 <TouchableOpacity style={styles.secondaryButton} onPress={() => void handleTakePhoto()}>
                   <Text style={styles.secondaryButtonText}>Camera</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.secondaryButton} onPress={() => void handlePickFromGallery()}>
+                <TouchableOpacity style={styles.secondaryButton} testID="dashboard-gallery-button" onPress={() => void handlePickFromGallery()}>
                   <Text style={styles.secondaryButtonText}>Galeria</Text>
                 </TouchableOpacity>
               </View>
 
               <TouchableOpacity
                 style={[styles.createTaskButton, savingTask && styles.disabledButton]}
+                testID="dashboard-save-task-button"
                 onPress={() => void handleCreateTask()}
                 disabled={savingTask}
                 activeOpacity={0.8}>
@@ -483,6 +477,7 @@ export default function DashboardScreen() {
           <>
             <TouchableOpacity
               style={styles.testButton}
+              testID="dashboard-view-ranking-button"
               onPress={() => router.push('/ranking')}
               activeOpacity={0.8}>
               <Text style={styles.testButtonText}>Ver ranking</Text>
@@ -494,19 +489,19 @@ export default function DashboardScreen() {
       />
 
       <View style={styles.bottomNav}>
-        <TouchableOpacity style={styles.navItem} onPress={() => router.push('/dashboard')}>
+        <TouchableOpacity style={styles.navItem} testID="dashboard-nav-home" onPress={() => router.push('/dashboard')}>
           <Text style={styles.navIcon}>🏠</Text>
           <Text style={styles.navLabel}>Home</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => router.push('/dashboard')}>
+        <TouchableOpacity style={styles.navItem} testID="dashboard-nav-tasks" onPress={() => router.push('/dashboard')}>
           <Text style={styles.navIcon}>✓</Text>
           <Text style={styles.navLabel}>Tarefas</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => router.push('/ranking')}>
+        <TouchableOpacity style={styles.navItem} testID="dashboard-nav-ranking" onPress={() => router.push('/ranking')}>
           <Text style={styles.navIcon}>🏆</Text>
           <Text style={styles.navLabel}>Ranking</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => router.push('/profile')}>
+        <TouchableOpacity style={styles.navItem} testID="dashboard-nav-profile" onPress={() => router.push('/profile')}>
           <Text style={styles.navIcon}>👤</Text>
           <Text style={styles.navLabel}>Perfil</Text>
         </TouchableOpacity>
