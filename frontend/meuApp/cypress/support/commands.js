@@ -101,8 +101,18 @@ Cypress.Commands.add('fillInput', (selector, value) => {
 });
 
 Cypress.Commands.add('tapElement', (selector) => {
-  cy.get(selector).should('exist').then(($element) => {
-    const element = $element[0];
+  cy.window({ log: false }).then((window) => {
+    const element = window.document.querySelector(selector);
+
+    if (!element) {
+      throw new Error(`Element not found for selector: ${selector}`);
+    }
+
+    if (typeof element.click === 'function') {
+      element.click();
+      return;
+    }
+
     const view = element.ownerDocument.defaultView;
 
     ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'].forEach((eventName) => {

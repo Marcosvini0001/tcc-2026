@@ -1,4 +1,67 @@
 describe('Qualidade dos testes e foco em testabilidade', () => {
+  it('executa cadastro e login pela interface com validacoes visuais e redirecionamentos', () => {
+    cy.buildUserPayload('fluxo-ui').then((user) => {
+      cy.openLoginPage();
+      cy.location('pathname').should('eq', '/login');
+      cy.contains('NeuroXP').should('exist');
+      cy.contains('Esqueceu a senha?').should('exist');
+      cy.wait(300);
+
+      cy.tapElement('[data-testid="login-submit-button"]');
+      cy.contains('E-mail obrigatorio').should('exist');
+      cy.contains('Senha obrigatoria').should('exist');
+
+      cy.tapElement('[data-testid="login-register-button"]');
+      cy.location('pathname').should('eq', '/register');
+      cy.contains('Criar conta').should('exist');
+      cy.wait(300);
+
+      cy.tapElement('[data-testid="register-submit-button"]');
+      cy.contains('Nome obrigatorio').should('exist');
+      cy.contains('E-mail obrigatorio').should('exist');
+      cy.contains('Senha obrigatoria').should('exist');
+      cy.contains('CPF obrigatorio').should('exist');
+
+      cy.fillInput('[data-testid="register-name-input"]', user.name);
+      cy.fillInput('[data-testid="register-email-input"]', user.email);
+      cy.fillInput('[data-testid="register-password-input"]', 'Senha123');
+      cy.fillInput('[data-testid="register-cpf-input"]', user.cpf);
+      cy.tapElement('[data-testid="register-submit-button"]');
+
+      cy.contains('Nivel da senha: media').should('exist');
+      cy.contains('A senha deve incluir letras maiusculas, minusculas, numeros e simbolos').should('exist');
+
+      cy.fillInput('[data-testid="register-password-input"]', user.password);
+      cy.tapElement('[data-testid="register-submit-button"]');
+
+      cy.location('pathname', { timeout: 15000 }).should('eq', '/dashboard');
+      cy.contains('Cadastrar atividade', { timeout: 15000 }).should('exist');
+      cy.contains('Sem tarefas cadastradas ainda.', { timeout: 15000 }).should('exist');
+
+      cy.tapElement('[data-testid="dashboard-nav-profile"]');
+      cy.location('pathname', { timeout: 15000 }).should('eq', '/profile');
+      cy.contains(user.name, { timeout: 15000 }).should('exist');
+      cy.contains('Seu Friend Code').should('exist');
+
+      cy.tapElement('[data-testid="profile-logout-button"]');
+      cy.location('pathname', { timeout: 15000 }).should('eq', '/login');
+      cy.wait(300);
+
+      cy.fillInput('[data-testid="login-email-input"]', user.email);
+      cy.fillInput('[data-testid="login-password-input"]', 'Senha123?');
+      cy.tapElement('[data-testid="login-submit-button"]');
+      cy.contains('E-mail ou senha invalidos').should('exist');
+      cy.location('pathname').should('eq', '/login');
+
+      cy.fillInput('[data-testid="login-password-input"]', user.password);
+      cy.tapElement('[data-testid="login-submit-button"]');
+
+      cy.location('pathname', { timeout: 15000 }).should('eq', '/dashboard');
+      cy.contains('Cadastrar atividade', { timeout: 15000 }).should('exist');
+      cy.contains('Atividades programadas').should('exist');
+    });
+  });
+
   it('valida regras centrais de autenticacao, pontuacao, amizades e ranking com dados reais', () => {
     cy.buildUserPayload('rubrica-principal').then((mainUser) => {
       cy.buildUserPayload('rubrica-amigo').then((friendUser) => {
