@@ -259,19 +259,40 @@ export const getAllUsers = async (req: Request, res: Response) => {
   }
 };
 
-export const getRanking = async (_req: Request, res: Response) => {
+export const getRanking = async (req: Request, res: Response) => {
   try {
+    if (!req.auth) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
+    const currentUserId = req.auth.userId;
+    const currentUserRelations = await UserFriend.findAll({
+      where: { userId: currentUserId },
+      attributes: ['friendId'],
+      raw: true,
+    });
+
+    const friendIds = currentUserRelations.map((relation) =>
+      toSafeNumber((relation as { friendId?: unknown }).friendId)
+    );
+
+    // Always include the current user in the ranking alongside their friends
+    const rankingUserIds = Array.from(new Set([currentUserId, ...friendIds]));
+
     const [users, relations, taskStats] = await Promise.all([
       User.findAll({
+        where: { id: { [Op.in]: rankingUserIds } },
         attributes: ['id', 'name'],
         order: [['createdAt', 'ASC']],
       }),
       UserFriend.findAll({
+        where: { userId: { [Op.in]: rankingUserIds } },
         attributes: ['userId', [fn('COUNT', col('friendId')), 'friendsCount']],
         group: ['userId'],
         raw: true,
       }),
       Task.findAll({
+        where: { userId: { [Op.in]: rankingUserIds } },
         attributes: [
           'userId',
           [fn('COUNT', col('id')), 'totalTasks'],

@@ -11,25 +11,21 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
-import { apiGetRanking, type ApiRankingUser, type ApiUser } from '@/lib/api';
+import { apiGetRanking, type ApiRankingUser } from '@/lib/api';
 import { getErrorMessage, redirectToLoginOnAuthError } from '@/lib/errorHandling';
-import { getCurrentUser, loadCurrentUser } from '@/lib/sessionStore';
+import { loadCurrentUser } from '@/lib/sessionStore';
 
 export default function RankingScreen() {
   const router = useRouter();
   const [ranking, setRanking] = React.useState<ApiRankingUser[]>([]);
   const [loading, setLoading] = React.useState(true);
-  const [currentUser, setCurrentUser] = React.useState<ApiUser | null>(getCurrentUser());
 
   React.useEffect(() => {
     void (async () => {
-      const user = getCurrentUser() ?? (await loadCurrentUser());
+      const user = await loadCurrentUser();
       if (!user) {
         router.replace('/login');
-        return;
       }
-
-      setCurrentUser(user);
     })();
   }, [router]);
 
@@ -55,10 +51,8 @@ export default function RankingScreen() {
   }, [loadRanking]);
 
   const renderFriend = ({ item }: { item: ApiRankingUser }) => {
-    const isCurrentUser = currentUser?.id === item.id;
-
     return (
-      <View style={[styles.friendCard, isCurrentUser && styles.currentUserCard]} testID={`ranking-card-${item.id}`}>
+      <View style={styles.friendCard} testID={`ranking-card-${item.id}`}>
         <View style={styles.rankContainer}>
           <Text style={styles.rankText}>{item.rank}º</Text>
         </View>
@@ -101,7 +95,7 @@ export default function RankingScreen() {
             </View>
 
             <View style={styles.listHeader}>
-              <Text style={styles.listTitle}>Ranking real (banco de dados)</Text>
+              <Text style={styles.listTitle}>Ranking dos seus amigos</Text>
             </View>
 
             {loading ? (
@@ -111,9 +105,17 @@ export default function RankingScreen() {
               </View>
             ) : null}
 
-            {!loading && ranking.length === 0 ? (
+            {!loading && ranking.length <= 1 ? (
               <View style={styles.emptyContainer}>
-                <Text style={styles.emptyText}>Ainda nao ha usuarios no ranking.</Text>
+                <Text style={styles.emptyText}>
+                  Adicione amigos pelo codigo no perfil para ve-los no ranking!
+                </Text>
+                <TouchableOpacity
+                  style={styles.addFriendCta}
+                  onPress={() => router.push('/profile')}
+                  activeOpacity={0.8}>
+                  <Text style={styles.addFriendCtaText}>Adicionar amigos</Text>
+                </TouchableOpacity>
               </View>
             ) : null}
           </>
@@ -219,6 +221,19 @@ const styles = StyleSheet.create({
     color: '#333',
     fontSize: 13,
     textAlign: 'center',
+    marginBottom: 10,
+  },
+  addFriendCta: {
+    backgroundColor: '#22C55E',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    alignSelf: 'center',
+  },
+  addFriendCtaText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 13,
   },
   friendCard: {
     backgroundColor: '#fff',
@@ -232,10 +247,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
-  },
-  currentUserCard: {
-    borderWidth: 1.5,
-    borderColor: '#22C55E',
   },
   rankContainer: {
     width: 40,

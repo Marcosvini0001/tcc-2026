@@ -45,7 +45,7 @@ router.post('/', createUser);
 router.post('/login', loginUser);
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);
-router.get('/ranking', getRanking);
+router.get('/ranking', requireAuth(['user']), getRanking);
 
 router.use(requireAuth());
 
