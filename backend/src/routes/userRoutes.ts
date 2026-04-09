@@ -13,6 +13,7 @@ import {
   deleteUser,
   addFriendByCode,
   getUserFriends,
+  removeFriend,
   createTask,
   createTaskByUpload,
   getUserTasks,
@@ -55,6 +56,7 @@ router.put('/:id', requireUserAccess, updateUser);
 router.delete('/:id', requireUserAccess, deleteUser);
 router.post('/:id/friends', requireUserAccess, addFriendByCode);
 router.get('/:id/friends', requireUserAccess, getUserFriends);
+router.delete('/:id/friends/:friendId', requireUserAccess, removeFriend);
 router.post('/:id/tasks', requireUserAccess, createTask);
 router.post('/:id/tasks/upload', requireUserAccess, upload.single('photo'), createTaskByUpload);
 router.get('/:id/tasks', requireUserAccess, getUserTasks);

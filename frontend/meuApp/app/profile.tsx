@@ -5,27 +5,23 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
-import { apiAddFriendByCode, apiGetFriends, apiGetUserById, type ApiUserProfile } from '@/lib/api';
+import { apiGetUserById, type ApiUserProfile } from '@/lib/api';
 import { getErrorMessage, redirectToLoginOnAuthError } from '@/lib/errorHandling';
-import { clearCurrentSession, getCurrentUser, loadCurrentUser } from '@/lib/sessionStore';
+import { clearCurrentSession, loadCurrentUser } from '@/lib/sessionStore';
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const [friendCodeInput, setFriendCodeInput] = React.useState('');
   const [currentUserName, setCurrentUserName] = React.useState('Usuario');
   const [currentUserCode, setCurrentUserCode] = React.useState('----');
-  const [friends, setFriends] = React.useState<string[]>([]);
-  const [isAddingFriend, setIsAddingFriend] = React.useState(false);
   const [userProfile, setUserProfile] = React.useState<ApiUserProfile | null>(null);
 
   const loadProfile = React.useCallback(async () => {
-    const user = getCurrentUser() ?? (await loadCurrentUser());
+    const user = await loadCurrentUser();
     if (!user) {
       await clearCurrentSession();
       router.replace('/login');
@@ -36,15 +32,11 @@ export default function ProfileScreen() {
     setCurrentUserCode(user.friendCode);
 
     try {
-      const [refreshedUser, fetchedFriends] = await Promise.all([
-        apiGetUserById(user.id),
-        apiGetFriends(user.id),
-      ]);
+      const refreshedUser = await apiGetUserById(user.id);
 
       setCurrentUserName(refreshedUser.name);
       setCurrentUserCode(refreshedUser.friendCode);
       setUserProfile(refreshedUser);
-      setFriends(fetchedFriends.map((friend) => `${friend.name} (${friend.friendCode})`));
     } catch (error) {
       const message = getErrorMessage(error, 'Nao foi possivel carregar sua lista de amigos.');
       if (await redirectToLoginOnAuthError(message, router)) {
@@ -58,36 +50,6 @@ export default function ProfileScreen() {
   React.useEffect(() => {
     void loadProfile();
   }, [loadProfile]);
-
-  const handleAddFriend = async () => {
-    const user = getCurrentUser() ?? (await loadCurrentUser());
-    if (!user) {
-      Alert.alert('Sessao nao encontrada', 'Faca login para adicionar amigos.');
-      return;
-    }
-
-    if (!friendCodeInput.trim()) {
-      Alert.alert('Codigo obrigatorio', 'Digite o codigo do amigo.');
-      return;
-    }
-
-    try {
-      setIsAddingFriend(true);
-      const addedFriend = await apiAddFriendByCode(user.id, friendCodeInput.trim());
-      await loadProfile();
-      setFriendCodeInput('');
-      Alert.alert('Amigo adicionado', `${addedFriend.name} agora faz parte da sua lista.`);
-    } catch (error) {
-      const message = getErrorMessage(error, 'Nao foi possivel adicionar amigo.');
-      if (await redirectToLoginOnAuthError(message, router)) {
-        return;
-      }
-
-      Alert.alert('Erro', message);
-    } finally {
-      setIsAddingFriend(false);
-    }
-  };
 
   const handleLogout = async () => {
     await clearCurrentSession();
@@ -141,32 +103,6 @@ export default function ProfileScreen() {
             </View>
             <Text style={styles.levelHint}>{userProfile?.pointsToNextLevel ?? 0} pts para o proximo nivel</Text>
           </View>
-
-          <View style={styles.addFriendContainer}>
-            <TextInput
-              style={styles.addFriendInput}
-              testID="profile-friend-code-input"
-              value={friendCodeInput}
-              onChangeText={setFriendCodeInput}
-              placeholder="Digite o codigo do amigo"
-              placeholderTextColor="#888"
-              keyboardType="number-pad"
-            />
-            <TouchableOpacity style={styles.addFriendButton} testID="profile-add-friend-button" onPress={() => void handleAddFriend()}>
-              <Text style={styles.addFriendButtonText}>{isAddingFriend ? 'Adicionando...' : 'Adicionar'}</Text>
-            </TouchableOpacity>
-          </View>
-
-          {friends.length > 0 ? (
-            <View style={styles.friendsListContainer}>
-              <Text style={styles.friendsListTitle}>Meus amigos</Text>
-              {friends.map((friendName) => (
-                <Text key={friendName} style={styles.friendItemText}>
-                  {friendName}
-                </Text>
-              ))}
-            </View>
-          ) : null}
 
           <TouchableOpacity style={styles.logoutButton} testID="profile-logout-button" onPress={() => void handleLogout()}>
             <Text style={styles.logoutButtonText}>Sair da conta</Text>
@@ -341,53 +277,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#4b5563',
     textAlign: 'center',
-  },
-  addFriendContainer: {
-    width: '82%',
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 10,
-  },
-  addFriendInput: {
-    flex: 1,
-    height: 40,
-    borderWidth: 1,
-    borderColor: '#666',
-    borderRadius: 8,
-    backgroundColor: '#fff',
-    paddingHorizontal: 10,
-    color: '#000',
-  },
-  addFriendButton: {
-    backgroundColor: '#22C55E',
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  addFriendButtonText: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 12,
-  },
-  friendsListContainer: {
-    width: '82%',
-    backgroundColor: '#f8f8f8',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    marginBottom: 14,
-  },
-  friendsListTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#222',
-    marginBottom: 4,
-  },
-  friendItemText: {
-    fontSize: 12,
-    color: '#333',
-    marginBottom: 2,
   },
   logoutButton: {
     width: '82%',

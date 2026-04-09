@@ -1,24 +1,26 @@
 import React from 'react';
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   SafeAreaView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
-import { apiGetRanking, type ApiRankingUser } from '@/lib/api';
-import { getErrorMessage, redirectToLoginOnAuthError } from '@/lib/errorHandling';
-import { loadCurrentUser } from '@/lib/sessionStore';
+import { apiAddFriendByCode, apiGetRanking, apiRemoveFriend, type ApiRankingUser } from '@/lib/api';
+import { getErrorMessage, redirectToLoginOnAuthError, showAlert, showConfirm } from '@/lib/errorHandling';
+import { getCurrentUser, loadCurrentUser } from '@/lib/sessionStore';
 
 export default function RankingScreen() {
   const router = useRouter();
   const [ranking, setRanking] = React.useState<ApiRankingUser[]>([]);
   const [loading, setLoading] = React.useState(true);
+  const [friendCodeInput, setFriendCodeInput] = React.useState('');
+  const [isAddingFriend, setIsAddingFriend] = React.useState(false);
 
   React.useEffect(() => {
     void (async () => {
@@ -40,7 +42,7 @@ export default function RankingScreen() {
         return;
       }
 
-      Alert.alert('Erro', message);
+      showAlert('Erro', message);
     } finally {
       setLoading(false);
     }
@@ -49,6 +51,56 @@ export default function RankingScreen() {
   React.useEffect(() => {
     void loadRanking();
   }, [loadRanking]);
+
+  const handleAddFriend = async () => {
+    const user = getCurrentUser() ?? (await loadCurrentUser());
+    if (!user) {
+      showAlert('Sessao nao encontrada', 'Faca login para adicionar amigos.');
+      return;
+    }
+
+    if (!friendCodeInput.trim()) {
+      showAlert('Codigo obrigatorio', 'Digite o codigo do amigo.');
+      return;
+    }
+
+    try {
+      setIsAddingFriend(true);
+      const addedFriend = await apiAddFriendByCode(user.id, friendCodeInput.trim());
+      await loadRanking();
+      setFriendCodeInput('');
+      showAlert('Amigo adicionado', `${addedFriend.name} agora aparece no ranking.`);
+    } catch (error) {
+      const message = getErrorMessage(error, 'Nao foi possivel adicionar amigo.');
+      if (await redirectToLoginOnAuthError(message, router)) {
+        return;
+      }
+      showAlert('Erro', message);
+    } finally {
+      setIsAddingFriend(false);
+    }
+  };
+
+  const handleRemoveFriend = async (friendId: number, friendName: string) => {
+    const user = getCurrentUser() ?? (await loadCurrentUser());
+    if (!user) {
+      showAlert('Sessao nao encontrada', 'Faca login novamente.');
+      return;
+    }
+
+    showConfirm('Remover amigo', `Deseja remover ${friendName} do ranking?`, async () => {
+      try {
+        await apiRemoveFriend(user.id, friendId);
+        await loadRanking();
+      } catch (error) {
+        const message = getErrorMessage(error, 'Nao foi possivel remover amigo.');
+        if (await redirectToLoginOnAuthError(message, router)) {
+          return;
+        }
+        showAlert('Erro', message);
+      }
+    });
+  };
 
   const renderFriend = ({ item }: { item: ApiRankingUser }) => {
     return (
@@ -74,6 +126,12 @@ export default function RankingScreen() {
             <Text style={styles.pointsGain}>{item.taskPoints} pts em tarefas</Text>
             <Text style={styles.pointsGain}>{item.friendsCount} amigos</Text>
           </View>
+          <TouchableOpacity
+            style={styles.removeButton}
+            onPress={() => void handleRemoveFriend(item.id, item.name)}
+            activeOpacity={0.7}>
+            <Text style={styles.removeButtonText}>Remover</Text>
+          </TouchableOpacity>
         </View>
       </View>
     );
@@ -105,17 +163,33 @@ export default function RankingScreen() {
               </View>
             ) : null}
 
-            {!loading && ranking.length <= 1 ? (
+            <View style={styles.addFriendContainer}>
+              <TextInput
+                style={styles.addFriendInput}
+                testID="ranking-friend-code-input"
+                value={friendCodeInput}
+                onChangeText={setFriendCodeInput}
+                placeholder="Codigo do amigo"
+                placeholderTextColor="#888"
+                keyboardType="number-pad"
+              />
+              <TouchableOpacity
+                style={[styles.addFriendButton, isAddingFriend && { opacity: 0.5 }]}
+                testID="ranking-add-friend-button"
+                onPress={() => void handleAddFriend()}
+                activeOpacity={0.8}
+                disabled={isAddingFriend}>
+                <Text style={styles.addFriendButtonText}>
+                  {isAddingFriend ? '...' : 'Adicionar'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {!loading && ranking.length === 0 ? (
               <View style={styles.emptyContainer}>
                 <Text style={styles.emptyText}>
-                  Adicione amigos pelo codigo no perfil para ve-los no ranking!
+                  Adicione amigos pelo codigo para ve-los no ranking!
                 </Text>
-                <TouchableOpacity
-                  style={styles.addFriendCta}
-                  onPress={() => router.push('/profile')}
-                  activeOpacity={0.8}>
-                  <Text style={styles.addFriendCtaText}>Adicionar amigos</Text>
-                </TouchableOpacity>
               </View>
             ) : null}
           </>
@@ -223,14 +297,30 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 10,
   },
-  addFriendCta: {
-    backgroundColor: '#22C55E',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    alignSelf: 'center',
+  addFriendContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12,
+    marginBottom: 4,
   },
-  addFriendCtaText: {
+  addFriendInput: {
+    flex: 1,
+    height: 40,
+    borderWidth: 1,
+    borderColor: '#999',
+    borderRadius: 8,
+    backgroundColor: '#fff',
+    paddingHorizontal: 10,
+    color: '#000',
+  },
+  addFriendButton: {
+    backgroundColor: '#22C55E',
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addFriendButtonText: {
     color: '#fff',
     fontWeight: '700',
     fontSize: 13,
@@ -321,6 +411,19 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     color: '#22C55E',
+  },
+  removeButton: {
+    backgroundColor: '#EF4444',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    marginTop: 6,
+    alignSelf: 'flex-end',
+  },
+  removeButtonText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '600',
   },
   bottomNav: {
     position: 'absolute',

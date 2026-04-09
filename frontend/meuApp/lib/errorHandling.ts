@@ -1,3 +1,4 @@
+import { Alert, Platform } from 'react-native';
 import { clearCurrentSession } from './sessionStore';
 
 type NavigationTarget = {
@@ -33,4 +34,29 @@ export const redirectToLoginOnAuthError = async (
   await clearCurrentSession();
   router.replace('/login');
   return true;
+};
+
+export const showAlert = (title: string, message: string) => {
+  if (Platform.OS === 'web') {
+    window.alert(`${title}\n${message}`);
+  } else {
+    Alert.alert(title, message);
+  }
+};
+
+export const showConfirm = (
+  title: string,
+  message: string,
+  onConfirm: () => void
+) => {
+  if (Platform.OS === 'web') {
+    if (window.confirm(`${title}\n${message}`)) {
+      onConfirm();
+    }
+  } else {
+    Alert.alert(title, message, [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Confirmar', style: 'destructive', onPress: onConfirm },
+    ]);
+  }
 };

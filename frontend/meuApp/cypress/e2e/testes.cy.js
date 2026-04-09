@@ -106,9 +106,9 @@ describe('Qualidade dos testes e foco em testabilidade', () => {
 
                   cy.get(`[data-testid="ranking-card-${friendSession.user.id}"]`).within(() => {
                     cy.contains(friendUser.name).should('exist');
-                    cy.contains('30 pts').should('exist');
+                    cy.contains('0 pts').should('exist');
                     cy.contains('0 pts em tarefas').should('exist');
-                    cy.contains('1 amigos').should('exist');
+                    cy.contains('0 amigos').should('exist');
                   });
 
                   cy.get(`[data-testid="ranking-card-${friendSession.user.id}"]`).should('exist');
@@ -168,7 +168,7 @@ describe('Qualidade dos testes e foco em testabilidade', () => {
               failOnStatusCode: false,
             }).then((response) => {
               expect(response.status).to.eq(409);
-              expect(response.body.message).to.eq('Users are already friends');
+              expect(response.body.message).to.eq('Amigo ja adicionado');
             });
           });
         });

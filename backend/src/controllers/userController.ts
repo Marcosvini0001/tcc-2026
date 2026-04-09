@@ -272,12 +272,13 @@ export const getRanking = async (req: Request, res: Response) => {
       raw: true,
     });
 
-    const friendIds = currentUserRelations.map((relation) =>
+    const rankingUserIds = currentUserRelations.map((relation) =>
       toSafeNumber((relation as { friendId?: unknown }).friendId)
     );
 
-    // Always include the current user in the ranking alongside their friends
-    const rankingUserIds = Array.from(new Set([currentUserId, ...friendIds]));
+    if (rankingUserIds.length === 0) {
+      return res.json([]);
+    }
 
     const [users, relations, taskStats] = await Promise.all([
       User.findAll({
@@ -481,33 +482,25 @@ export const addFriendByCode = async (req: Request, res: Response) => {
 
     const friend = await User.findOne({ where: { friendCode } });
     if (!friend) {
-      return res.status(404).json({ message: 'Friend code not found' });
+      return res.status(404).json({ message: 'Codigo de amigo nao encontrado' });
     }
 
     const userId = user.get('id') as number;
     const friendId = friend.get('id') as number;
 
     if (friendId === userId) {
-      return res.status(400).json({ message: 'Cannot add yourself as friend' });
+      return res.status(400).json({ message: 'Voce nao pode se adicionar como amigo' });
     }
 
     const existingRelation = await UserFriend.findOne({
-      where: {
-        [Op.or]: [
-          { userId, friendId },
-          { userId: friendId, friendId: userId },
-        ],
-      },
+      where: { userId, friendId },
     });
 
     if (existingRelation) {
-      return res.status(409).json({ message: 'Users are already friends' });
+      return res.status(409).json({ message: 'Amigo ja adicionado' });
     }
 
-    await sequelize.transaction(async (transaction) => {
-      await UserFriend.create({ userId, friendId }, { transaction });
-      await UserFriend.create({ userId: friendId, friendId: userId }, { transaction });
-    });
+    await UserFriend.create({ userId, friendId });
 
     return res.status(201).json({
       message: 'Friend added successfully',
@@ -540,6 +533,37 @@ export const getUserFriends = async (req: Request, res: Response) => {
     return res.json(friends.map((friend) => sanitizeUser(friend)));
   } catch (error) {
     console.error('Error fetching user friends:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+export const removeFriend = async (req: Request, res: Response) => {
+  try {
+    const { id, friendId } = req.params;
+
+    const user = await User.findByPk(id as string);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const userId = user.get('id') as number;
+    const parsedFriendId = Number(friendId);
+
+    if (!Number.isFinite(parsedFriendId) || parsedFriendId <= 0) {
+      return res.status(400).json({ message: 'Invalid friend id' });
+    }
+
+    const deleted = await UserFriend.destroy({
+      where: { userId, friendId: parsedFriendId },
+    });
+
+    if (deleted === 0) {
+      return res.status(404).json({ message: 'Friendship not found' });
+    }
+
+    return res.json({ message: 'Friend removed successfully' });
+  } catch (error) {
+    console.error('Error removing friend:', error);
     return res.status(500).json({ message: 'Internal server error' });
   }
 };

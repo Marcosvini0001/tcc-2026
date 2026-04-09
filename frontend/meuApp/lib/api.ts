@@ -159,6 +159,13 @@ export async function apiGetFriends(userId: number): Promise<ApiUser[]> {
   return request<ApiUser[]>(`/users/${userId}/friends`);
 }
 
+export async function apiRemoveFriend(userId: number, friendId: number): Promise<void> {
+  ensureValidUserId(userId);
+  await request<{ message: string }>(`/users/${userId}/friends/${friendId}`, {
+    method: 'DELETE',
+  });
+}
+
 export async function apiGetRanking(): Promise<ApiRankingUser[]> {
   return request<ApiRankingUser[]>('/users/ranking');
 }
