@@ -78,12 +78,38 @@ Cypress.Commands.add('openLoginPage', () => {
 });
 
 Cypress.Commands.add('visitWithSession', (path, session) => {
-  return cy.visit(path, {
+  cy.visit(path, {
     onBeforeLoad(window) {
       window.localStorage.clear();
+      // Garante que a sessão tem token válido
+      if (!session.token || !session.user) {
+        console.error('Sessão inválida:', session);
+        throw new Error('Sessão deve ter token e user');
+      }
+
+      // Simula AsyncStorage para React Native
       window.localStorage.setItem('neuroxp.session', JSON.stringify(session));
+
+      // Simula o AsyncStorage que a aplicação usa
+      if (!window.AsyncStorage) {
+        window.AsyncStorage = {
+          getItem: (key) => Promise.resolve(window.localStorage.getItem(key)),
+          setItem: (key, value) => {
+            window.localStorage.setItem(key, value);
+            return Promise.resolve();
+          },
+          removeItem: (key) => {
+            window.localStorage.removeItem(key);
+            return Promise.resolve();
+          }
+        };
+      }
     },
   });
+
+  // Aguarda que a aplicação carregue a sessão em memória
+  cy.get('body').should('exist'); // Garante que o DOM está carregado
+  cy.wait(1500); // Aguarda mais tempo para React Native carregar
 });
 
 Cypress.Commands.add('fillInput', (selector, value) => {

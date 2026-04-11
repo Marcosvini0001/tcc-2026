@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
-import { apiGetUserById, type ApiUserProfile } from '@/lib/api';
+import { apiGetFriends, apiGetUserById, type ApiUser, type ApiUserProfile } from '@/lib/api';
 import { getErrorMessage, redirectToLoginOnAuthError } from '@/lib/errorHandling';
 import { clearCurrentSession, loadCurrentUser } from '@/lib/sessionStore';
 
@@ -19,6 +19,7 @@ export default function ProfileScreen() {
   const [currentUserName, setCurrentUserName] = React.useState('Usuario');
   const [currentUserCode, setCurrentUserCode] = React.useState('----');
   const [userProfile, setUserProfile] = React.useState<ApiUserProfile | null>(null);
+  const [friends, setFriends] = React.useState<ApiUser[]>([]);
 
   const loadProfile = React.useCallback(async () => {
     const user = await loadCurrentUser();
@@ -32,11 +33,15 @@ export default function ProfileScreen() {
     setCurrentUserCode(user.friendCode);
 
     try {
-      const refreshedUser = await apiGetUserById(user.id);
+      const [refreshedUser, friendsList] = await Promise.all([
+        apiGetUserById(user.id),
+        apiGetFriends(user.id),
+      ]);
 
       setCurrentUserName(refreshedUser.name);
       setCurrentUserCode(refreshedUser.friendCode);
       setUserProfile(refreshedUser);
+      setFriends(friendsList);
     } catch (error) {
       const message = getErrorMessage(error, 'Nao foi possivel carregar sua lista de amigos.');
       if (await redirectToLoginOnAuthError(message, router)) {
@@ -80,6 +85,19 @@ export default function ProfileScreen() {
             <Text style={styles.friendCodeSubtitle}>Codigo</Text>
             <Text style={styles.friendCodeValue}>{currentUserCode}</Text>
             <Text style={styles.friendCodeHint}>Compartilhe esse codigo para ser adicionado.</Text>
+          </View>
+
+          <View style={styles.friendsCard}>
+            <Text style={styles.friendsTitle}>Amigos</Text>
+            {friends.length === 0 ? (
+              <Text style={styles.friendEmptyText}>Nenhum amigo adicionado ainda.</Text>
+            ) : (
+              friends.map((friend) => (
+                <Text key={friend.id} style={styles.friendNameText}>
+                  {friend.name}
+                </Text>
+              ))
+            )}
           </View>
 
           <View style={styles.statsCard}>
@@ -222,6 +240,32 @@ const styles = StyleSheet.create({
   friendCodeHint: {
     fontSize: 11,
     color: '#6b7280',
+  },
+  friendsCard: {
+    width: '82%',
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  friendsTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#4b5563',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+  },
+  friendEmptyText: {
+    fontSize: 13,
+    color: '#6b7280',
+  },
+  friendNameText: {
+    fontSize: 14,
+    color: '#111827',
+    marginBottom: 4,
   },
   statsCard: {
     width: '82%',

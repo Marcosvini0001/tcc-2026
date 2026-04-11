@@ -78,7 +78,10 @@ describe('Qualidade dos testes e foco em testabilidade', () => {
 
                   cy.intercept('GET', `**/users/${mainSession.user.id}`).as('profileRequest');
                   cy.intercept('GET', `**/users/${mainSession.user.id}/tasks`).as('tasksRequest');
-                  cy.intercept('GET', '**/users/ranking').as('rankingRequest');
+                  cy.intercept('GET', '**/users/ranking', (req) => {
+                    // Força o token de autenticação na requisição
+                    req.headers['authorization'] = `Bearer ${mainSession.token}`;
+                  }).as('rankingRequest');
 
                   cy.visitWithSession('/dashboard', mainSession);
                   cy.wait('@tasksRequest');
@@ -98,8 +101,10 @@ describe('Qualidade dos testes e foco em testabilidade', () => {
 
                   cy.visitWithSession('/ranking', mainSession);
                   cy.wait('@rankingRequest');
+                  cy.get('@rankingRequest').its('response.statusCode').should('eq', 200);
                   cy.get('@rankingRequest').its('response.body').should((ranking) => {
-                    expect(ranking).to.have.length(1);
+                    expect(ranking).to.be.an('array');
+                    expect(ranking.length).to.eq(1);
                     expect(ranking[0].id).to.eq(friendSession.user.id);
                     expect(ranking[0].name).to.eq(friendUser.name);
                   });
