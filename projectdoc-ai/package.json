@@ -1,0 +1,21 @@
+{
+  "name": "projectdoc-ai",
+  "displayName": "ProjectDoc AI",
+  "publisher": "tcc-2026",
+  "version": "0.1.0",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "activationEvents": [
+    "onCommand:projectdocai.generateDocumentation"
+  ],
+  "main": "extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "projectdocai.generateDocumentation",
+        "title": "ProjectDoc AI: Analyze Project and Generate Documentation"
+      }
+    ]
+  }
+}
