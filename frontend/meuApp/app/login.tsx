@@ -98,6 +98,7 @@ export default function LoginScreen() {
 
           {/* Title */}
           <Text style={styles.title}>NeuroXP</Text>
+          <Text style={styles.subtitle}>Entre na sua conta e acompanhe seu progresso.</Text>
 
           {/* Email Input */}
           <View style={styles.inputContainer}>
@@ -166,7 +167,7 @@ export default function LoginScreen() {
             testID="login-register-button"
             onPress={handleRegister}
             activeOpacity={0.8}>
-            <Text style={styles.registerButtonText}>Cadastrar</Text>
+            <Text style={styles.registerButtonText}>Criar conta grátis</Text>
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -199,22 +200,28 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   title: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: '#000',
-    marginBottom: 40,
+    fontSize: 34,
+    fontWeight: '800',
+    color: '#F8FAFC',
+    marginBottom: 8,
     textAlign: 'center',
-    letterSpacing: 1,
+    letterSpacing: 0.4,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: '#AAB3C9',
+    textAlign: 'center',
+    marginBottom: 32,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#333',
-    borderRadius: 8,
-    paddingHorizontal: 12,
+    borderColor: '#283145',
+    borderRadius: 16,
+    paddingHorizontal: 14,
     marginBottom: 16,
-    backgroundColor: '#fff',
+    backgroundColor: '#131C2B',
   },
   inputLabel: {
     fontSize: 18,
@@ -223,42 +230,42 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     paddingVertical: 14,
-    fontSize: 14,
-    color: '#000',
+    fontSize: 15,
+    color: '#F8FAFC',
   },
   errorText: {
     fontSize: 12,
-    color: '#DC2626',
+    color: '#F87171',
     marginTop: -8,
     marginBottom: 10,
     marginLeft: 2,
     fontWeight: '600',
   },
   forgotPassword: {
-    fontSize: 12,
-    color: '#333',
+    fontSize: 13,
+    color: '#7C8CBF',
     textAlign: 'right',
     marginBottom: 20,
     textDecorationLine: 'underline',
   },
   loginButton: {
-    backgroundColor: '#22C55E',
+    backgroundColor: '#00E5A0',
     paddingVertical: 14,
-    borderRadius: 6,
-    marginBottom: 20,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
+    borderRadius: 14,
+    marginBottom: 16,
+    shadowColor: '#00E5A0',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.18,
+    shadowRadius: 24,
+    elevation: 5,
   },
   disabledButton: {
     opacity: 0.7,
   },
   loginButtonText: {
-    color: '#fff',
+    color: '#0F172A',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
     textAlign: 'center',
   },
   dividerContainer: {
@@ -269,21 +276,22 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: '#ccc',
+    backgroundColor: '#24304C',
   },
   dividerText: {
     fontSize: 12,
-    color: '#666',
+    color: '#7C8CBF',
     marginHorizontal: 12,
+    fontWeight: '600',
   },
   registerButton: {
     borderWidth: 1.5,
-    borderColor: '#22C55E',
+    borderColor: '#00E5A0',
     paddingVertical: 12,
-    borderRadius: 6,
+    borderRadius: 14,
   },
   registerButtonText: {
-    color: '#22C55E',
+    color: '#D9FCE0',
     fontSize: 16,
     fontWeight: '600',
     textAlign: 'center',

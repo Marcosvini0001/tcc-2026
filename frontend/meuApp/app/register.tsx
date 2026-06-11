@@ -107,7 +107,7 @@ export default function RegisterScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardAvoidingView}>
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          <Text style={styles.title}>Criar conta</Text>
+          <Text style={styles.title}>Criar conta grátis</Text>
 
           <View style={styles.inputContainer}>
             <Text style={styles.inputLabel}>Nome</Text>
@@ -215,7 +215,7 @@ export default function RegisterScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: '#0A101B',
   },
   keyboardAvoidingView: {
     flex: 1,
@@ -228,40 +228,40 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 30,
-    fontWeight: '700',
-    color: '#000',
+    fontWeight: '800',
+    color: '#F8FAFC',
     textAlign: 'center',
-    marginBottom: 28,
+    marginBottom: 18,
   },
   inputContainer: {
     marginBottom: 14,
   },
   inputLabel: {
     fontSize: 14,
-    color: '#333',
+    color: '#AAB3C9',
     marginBottom: 6,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   input: {
     borderWidth: 1,
-    borderColor: '#333',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    backgroundColor: '#fff',
-    color: '#000',
-    fontSize: 14,
+    borderColor: '#212B40',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    backgroundColor: '#111B2C',
+    color: '#F8FAFC',
+    fontSize: 15,
   },
   passwordLevelText: {
     fontSize: 12,
-    color: '#4B5563',
+    color: '#7C8CBF',
     marginTop: -6,
     marginBottom: 6,
     fontWeight: '600',
   },
   passwordBarTrack: {
     height: 6,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: '#1F2A40',
     borderRadius: 999,
     overflow: 'hidden',
     marginBottom: 10,
@@ -272,31 +272,36 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 12,
-    color: '#DC2626',
+    color: '#F87171',
     marginTop: -8,
     marginBottom: 10,
     marginLeft: 2,
     fontWeight: '600',
   },
   primaryButton: {
-    backgroundColor: '#22C55E',
+    backgroundColor: '#00E5A0',
     paddingVertical: 14,
-    borderRadius: 6,
+    borderRadius: 14,
     marginTop: 8,
     marginBottom: 18,
+    shadowColor: '#00E5A0',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    elevation: 5,
   },
   disabledButton: {
     opacity: 0.7,
   },
   primaryButtonText: {
-    color: '#fff',
+    color: '#0F172A',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
     textAlign: 'center',
   },
   secondaryAction: {
     textAlign: 'center',
-    color: '#333',
+    color: '#7C8CBF',
     textDecorationLine: 'underline',
     fontSize: 13,
   },
