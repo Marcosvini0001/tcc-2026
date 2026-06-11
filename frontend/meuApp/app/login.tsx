@@ -90,7 +90,7 @@ export default function LoginScreen() {
           {/* Logo */}
           <View style={styles.logoContainer}>
             <Image
-              source={require('@/img/neuroxp.jpeg')}
+              source={require('@/img/logo.png')}
               style={styles.logo}
               contentFit="contain"
             />
@@ -178,7 +178,7 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: '#0A101B',
   },
   keyboardAvoidingView: {
     flex: 1,
@@ -188,6 +188,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 24,
     paddingVertical: 40,
+    backgroundColor: '#0A101B',
   },
   logoContainer: {
     width: 120,

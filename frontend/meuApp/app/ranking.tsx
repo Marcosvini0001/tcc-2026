@@ -147,7 +147,7 @@ export default function RankingScreen() {
           <>
             <View style={styles.header}>
               <View style={styles.logoContainer}>
-                <Image source={require('@/img/neuroxp.jpeg')} style={styles.logo} contentFit="contain" />
+                <Image source={require('@/img/logo.png')} style={styles.logo} contentFit="contain" />
               </View>
               <Text style={styles.headerTitle}>NeuroXP</Text>
             </View>
