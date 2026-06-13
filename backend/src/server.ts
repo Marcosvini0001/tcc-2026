@@ -5,6 +5,7 @@ import path from 'node:path';
 
 import app from './app';
 import sequelize from './config/database';
+import logger from './utils/logger';
 
 const PORT = Number(process.env.PORT || 3000);
 const uploadsDir = path.resolve(process.cwd(), 'uploads');
@@ -50,10 +51,10 @@ const startServer = async () => {
     }
 
     app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
+      logger.info(`Server running on port ${PORT}`);
     });
   } catch (error) {
-    console.error('Failed to start server:', error);
+    logger.error('Failed to start server', { error: error instanceof Error ? error.message : String(error) });
     process.exit(1);
   }
 };

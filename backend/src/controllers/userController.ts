@@ -8,6 +8,7 @@ import UserFriend from '../models/userFriendModels';
 import Task from '../models/taskModels';
 import { sanitizeTask } from '../serializers/taskSerializers';
 import { sanitizeUser } from '../serializers/userSerializers';
+import logger from '../utils/logger';
 import {
   createAccessToken,
   hashPassword,
@@ -37,20 +38,6 @@ const getMimeTypeByExtension = (filename: string) => {
   if (ext === '.webp') return 'image/webp';
   if (ext === '.heic') return 'image/heic';
   return 'image/jpeg';
-};
-
-const generateFriendCode = async (): Promise<string> => {
-  while (true) {
-    const length = Math.random() < 0.5 ? 4 : 5;
-    const min = Math.pow(10, length - 1);
-    const max = Math.pow(10, length) - 1;
-    const code = String(Math.floor(Math.random() * (max - min + 1)) + min);
-
-    const existing = await User.findOne({ where: { friendCode: code } });
-    if (!existing) {
-      return code;
-    }
-  }
 };
 
 const toSafeNumber = (value: unknown) => {
@@ -95,11 +82,36 @@ export const createUser = async (req: Request, res: Response) => {
       return res.status(409).json({ message: 'cpf ja cadastrado' });
     }
 
-    const friendCode = await generateFriendCode();
     const passwordHash = await hashPassword(password);
 
     const createdUser = await sequelize.transaction(async (transaction) => {
+      let friendCode: string;
+      let maxAttempts = 10;
+
+      do {
+        const length = Math.random() < 0.5 ? 4 : 5;
+        const min = Math.pow(10, length - 1);
+        const max = Math.pow(10, length) - 1;
+        friendCode = String(Math.floor(Math.random() * (max - min + 1)) + min);
+
+        const existing = await User.findOne({ where: { friendCode }, transaction });
+        if (!existing) {
+          break;
+        }
+        maxAttempts--;
+      } while (maxAttempts > 0);
+
+      if (maxAttempts === 0) {
+        throw new Error('Unable to generate unique friend code');
+      }
+
       return User.create({ name, email, password: passwordHash, cpf, friendCode }, { transaction });
+    });
+
+    logger.info('User created successfully', {
+      requestId: req.requestId,
+      userId: createdUser.id,
+      email
     });
 
     return res.status(201).json({
@@ -107,7 +119,10 @@ export const createUser = async (req: Request, res: Response) => {
       user: sanitizeUser(createdUser),
     });
   } catch (error) {
-    console.error('Error creating user:', error);
+    logger.error('Error creating user', {
+      requestId: req.requestId,
+      error: error instanceof Error ? error.message : String(error)
+    });
     const maybeSequelizeError = error as {
       name?: string;
       message?: string;
@@ -175,7 +190,7 @@ export const loginUser = async (req: Request, res: Response) => {
       user: sanitizeUser(user),
     });
   } catch (error) {
-    console.error('Error logging in user:', error);
+    logger.error('Error logging in user', { requestId: req.requestId, error: error instanceof Error ? error.message : String(error) });
     return res.status(500).json({ message: 'Internal server error' });
   }
 };
@@ -211,7 +226,7 @@ export const forgotPassword = async (req: Request, res: Response) => {
       expiresAt,
     });
   } catch (error) {
-    console.error('Error requesting password reset:', error);
+    logger.error('Error requesting password reset:', { requestId: req.requestId, error: error instanceof Error ? error.message : String(error) });
     return res.status(500).json({ message: 'Internal server error' });
   }
 };
@@ -244,7 +259,7 @@ export const resetPassword = async (req: Request, res: Response) => {
 
     return res.json({ message: 'Senha redefinida com sucesso' });
   } catch (error) {
-    console.error('Error resetting password:', error);
+    logger.error('Error resetting password:', { requestId: req.requestId, error: error instanceof Error ? error.message : String(error) });
     return res.status(500).json({ message: 'Internal server error' });
   }
 };
@@ -254,7 +269,7 @@ export const getAllUsers = async (req: Request, res: Response) => {
     const users = await User.findAll();
     return res.json(users.map((user) => sanitizeUser(user)));
   } catch (error) {
-    console.error('Error fetching users:', error);
+    logger.error('Error fetching users:', { requestId: req.requestId, error: error instanceof Error ? error.message : String(error) });
     return res.status(500).json({ message: 'Internal server error' });
   }
 };
@@ -370,7 +385,7 @@ export const getRanking = async (req: Request, res: Response) => {
 
     return res.json(ranking);
   } catch (error) {
-    console.error('Error fetching ranking:', error);
+    logger.error('Error fetching ranking:', { requestId: req.requestId, error: error instanceof Error ? error.message : String(error) });
     return res.status(500).json({ message: 'Internal server error' });
   }
 };
@@ -401,7 +416,7 @@ export const getUserById = async (req: Request, res: Response) => {
       ),
     });
   } catch (error) {
-    console.error('Error fetching user:', error);
+    logger.error('Error fetching user:', { requestId: req.requestId, error: error instanceof Error ? error.message : String(error) });
     return res.status(500).json({ message: 'Internal server error' });
   }
 };
@@ -461,7 +476,7 @@ export const updateUser = async (req: Request, res: Response) => {
     await user.save();
     return res.json(sanitizeUser(user));
   } catch (error) {
-    console.error('Error updating user:', error);
+    logger.error('Error updating user:', { requestId: req.requestId, error: error instanceof Error ? error.message : String(error) });
     return res.status(500).json({ message: 'Internal server error' });
   }
 };
@@ -492,22 +507,35 @@ export const addFriendByCode = async (req: Request, res: Response) => {
       return res.status(400).json({ message: 'Voce nao pode se adicionar como amigo' });
     }
 
-    const existingRelation = await UserFriend.findOne({
-      where: { userId, friendId },
+    await sequelize.transaction(async (transaction) => {
+      const existingRelation = await UserFriend.findOne({
+        where: { userId, friendId },
+        transaction,
+        lock: true,
+      });
+
+      if (existingRelation) {
+        throw new Error('Amigo ja adicionado');
+      }
+
+      await UserFriend.create({ userId, friendId }, { transaction });
     });
 
-    if (existingRelation) {
-      return res.status(409).json({ message: 'Amigo ja adicionado' });
-    }
-
-    await UserFriend.create({ userId, friendId });
+    logger.info('Friend added successfully', {
+      requestId: req.requestId,
+      userId,
+      friendId
+    });
 
     return res.status(201).json({
       message: 'Friend added successfully',
       friend: sanitizeUser(friend),
     });
   } catch (error) {
-    console.error('Error adding friend by code:', error);
+    if (error instanceof Error && error.message === 'Amigo ja adicionado') {
+      return res.status(409).json({ message: 'Amigo ja adicionado' });
+    }
+    logger.error('Error adding friend by code', { requestId: req.requestId, error: error instanceof Error ? error.message : String(error) });
     return res.status(500).json({ message: 'Internal server error' });
   }
 };
@@ -532,7 +560,7 @@ export const getUserFriends = async (req: Request, res: Response) => {
     const friends = await User.findAll({ where: { id: friendIds } });
     return res.json(friends.map((friend) => sanitizeUser(friend)));
   } catch (error) {
-    console.error('Error fetching user friends:', error);
+    logger.error('Error fetching user friends:', { requestId: req.requestId, error: error instanceof Error ? error.message : String(error) });
     return res.status(500).json({ message: 'Internal server error' });
   }
 };
@@ -563,7 +591,7 @@ export const removeFriend = async (req: Request, res: Response) => {
 
     return res.json({ message: 'Friend removed successfully' });
   } catch (error) {
-    console.error('Error removing friend:', error);
+    logger.error('Error removing friend:', { requestId: req.requestId, error: error instanceof Error ? error.message : String(error) });
     return res.status(500).json({ message: 'Internal server error' });
   }
 };
@@ -600,7 +628,7 @@ export const createTask = async (req: Request, res: Response) => {
 
     return res.status(201).json(sanitizeTask(task));
   } catch (error) {
-    console.error('Error creating task:', error);
+    logger.error('Error creating task:', { requestId: req.requestId, error: error instanceof Error ? error.message : String(error) });
     return res.status(500).json({ message: 'Internal server error' });
   }
 };
@@ -643,7 +671,7 @@ export const createTaskByUpload = async (req: Request, res: Response) => {
 
     return res.status(201).json(sanitizeTask(task));
   } catch (error) {
-    console.error('Error creating task by upload:', error);
+    logger.error('Error creating task by upload:', { requestId: req.requestId, error: error instanceof Error ? error.message : String(error) });
     return res.status(500).json({ message: 'Internal server error' });
   }
 };
@@ -664,7 +692,7 @@ export const getUserTasks = async (req: Request, res: Response) => {
 
     return res.json(tasks.map((task) => sanitizeTask(task)));
   } catch (error) {
-    console.error('Error fetching user tasks:', error);
+    logger.error('Error fetching user tasks:', { requestId: req.requestId, error: error instanceof Error ? error.message : String(error) });
     return res.status(500).json({ message: 'Internal server error' });
   }
 };
@@ -678,21 +706,39 @@ export const completeTask = async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    const task = await Task.findOne({ where: { id: taskId, userId: user.get('id') as number } });
-    if (!task) {
+    const userId = user.get('id') as number;
+    const result = await sequelize.transaction(async (transaction) => {
+      const task = await Task.findOne({
+        where: { id: taskId, userId },
+        transaction,
+        lock: true,
+      });
+
+      if (!task) {
+        throw new Error('Task not found');
+      }
+
+      if (task.get('completed')) {
+        return task;
+      }
+
+      task.set('completed', true);
+      await task.save({ transaction });
+      return task;
+    });
+
+    logger.info('Task completed successfully', {
+      requestId: req.requestId,
+      userId,
+      taskId
+    });
+
+    return res.json(sanitizeTask(result));
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Task not found') {
       return res.status(404).json({ message: 'Task not found' });
     }
-
-    if (task.get('completed')) {
-      return res.json(sanitizeTask(task));
-    }
-
-    task.set('completed', true);
-    await task.save();
-
-    return res.json(sanitizeTask(task));
-  } catch (error) {
-    console.error('Error completing task:', error);
+    logger.error('Error completing task', { requestId: req.requestId, error: error instanceof Error ? error.message : String(error) });
     return res.status(500).json({ message: 'Internal server error' });
   }
 };
@@ -780,7 +826,7 @@ export const analyzeTaskPhoto = async (req: Request, res: Response) => {
       analysis: analysisText,
     });
   } catch (error) {
-    console.error('Error analyzing task photo:', error);
+    logger.error('Error analyzing task photo:', { requestId: req.requestId, error: error instanceof Error ? error.message : String(error) });
     return res.status(500).json({ message: 'Internal server error' });
   }
 };
@@ -796,7 +842,7 @@ export const deleteUser = async (req: Request, res: Response) => {
     await user.destroy();
     return res.status(204).send();
   } catch (error) {
-    console.error('Error deleting user:', error);
+    logger.error('Error deleting user:', { requestId: req.requestId, error: error instanceof Error ? error.message : String(error) });
     return res.status(500).json({ message: 'Internal server error' });
   }
 };

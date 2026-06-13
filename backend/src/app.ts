@@ -5,6 +5,8 @@ import path from 'node:path';
 
 import userRoutes from './routes/userRoutes';
 import admRoutes from './routes/admRoutes';
+import { requestIdMiddleware } from './middleware/requestIdMiddleware';
+import logger from './utils/logger';
 import './models/userModels';
 import './models/admModels';
 import './models/userFriendModels';
@@ -15,6 +17,7 @@ const uploadsDir = path.resolve(process.cwd(), 'uploads');
 
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
+app.use(requestIdMiddleware);
 app.use('/uploads', express.static(uploadsDir));
 
 app.get('/health', (_req, res) => {
@@ -24,17 +27,19 @@ app.get('/health', (_req, res) => {
 app.use('/users', userRoutes);
 app.use('/adms', admRoutes);
 
-app.use((error: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+app.use((error: unknown, req: express.Request, res: express.Response, next: express.NextFunction) => {
   if (error instanceof multer.MulterError) {
+    logger.warn('Multer error', { requestId: req.requestId, error: error.message });
     return res.status(400).json({ message: error.message });
   }
 
   if (error instanceof Error && error.message === 'Only image files are allowed') {
+    logger.warn('Invalid file type', { requestId: req.requestId });
     return res.status(400).json({ message: error.message });
   }
 
   if (error instanceof Error) {
-    console.error('Unhandled application error:', error);
+    logger.error('Unhandled application error', { requestId: req.requestId, error: error.message, stack: error.stack });
     return res.status(500).json({ message: 'Internal server error' });
   }
 

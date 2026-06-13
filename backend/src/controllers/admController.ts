@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import Adm from '../models/admModels';
 import { sanitizeAdmin } from '../serializers/userSerializers';
+import logger from '../utils/logger';
 import {
   createAccessToken,
   hashPassword,
@@ -45,7 +46,7 @@ export const createAdm = async (req: Request, res: Response) => {
       admin: sanitizeAdmin(adm),
     });
   } catch (error) {
-    console.error('Error creating admin:', error);
+    logger.error('Error creating admin', { requestId: req.requestId, error: error instanceof Error ? error.message : String(error) });
     return res.status(500).json({ message: 'Internal server error' });
   }
 };
@@ -74,7 +75,7 @@ export const loginAdm = async (req: Request, res: Response) => {
       admin: sanitizeAdmin(adm),
     });
   } catch (error) {
-    console.error('Error logging in admin:', error);
+    logger.error('Error logging in admin', { requestId: req.requestId, error: error instanceof Error ? error.message : String(error) });
     return res.status(500).json({ message: 'Internal server error' });
   }
 };
@@ -84,7 +85,7 @@ export const getAllAdms = async (req: Request, res: Response) => {
     const adms = await Adm.findAll({ order: [['name', 'ASC']] });
     return res.json(adms.map((adm) => sanitizeAdmin(adm)));
   } catch (error) {
-    console.error('Error fetching admins:', error);
+    logger.error('Error fetching admins', { requestId: req.requestId, error: error instanceof Error ? error.message : String(error) });
     return res.status(500).json({ message: 'Internal server error' });
   }
 };
@@ -100,7 +101,7 @@ export const getAdmById = async (req: Request, res: Response) => {
 
     return res.json(sanitizeAdmin(adm));
   } catch (error) {
-    console.error('Error fetching admin:', error);
+    logger.error('Error fetching admin', { requestId: req.requestId, error: error instanceof Error ? error.message : String(error) });
     return res.status(500).json({ message: 'Internal server error' });
   }
 };
@@ -143,7 +144,7 @@ export const updateAdm = async (req: Request, res: Response) => {
     await adm.save();
     return res.json(sanitizeAdmin(adm));
   } catch (error) {
-    console.error('Error updating admin:', error);
+    logger.error('Error updating admin', { requestId: req.requestId, error: error instanceof Error ? error.message : String(error) });
     return res.status(500).json({ message: 'Internal server error' });
   }
 };
@@ -159,7 +160,7 @@ export const deleteAdm = async (req: Request, res: Response) => {
     await adm.destroy();
     return res.status(204).send();
   } catch (error) {
-    console.error('Error deleting admin:', error);
+    logger.error('Error deleting admin', { requestId: req.requestId, error: error instanceof Error ? error.message : String(error) });
     return res.status(500).json({ message: 'Internal server error' });
   }
 };

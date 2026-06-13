@@ -19,6 +19,7 @@ import {
   validatePasswordStrength,
 } from '@/lib/passwordStrength';
 import { loadCurrentSession, setCurrentSession } from '@/lib/sessionStore';
+import { maskCpf, unmaskValue } from '@/lib/masks';
 
 export default function RegisterScreen() {
   const router = useRouter();
@@ -75,7 +76,7 @@ export default function RegisterScreen() {
         name: name.trim(),
         email: email.trim(),
         password: password.trim(),
-        cpf: cpf.trim(),
+        cpf: unmaskValue(cpf),
       });
       await setCurrentSession(createdSession);
       Alert.alert(
@@ -180,12 +181,13 @@ export default function RegisterScreen() {
             <TextInput
               style={styles.input}
               testID="register-cpf-input"
-              placeholder="Somente numeros"
+              placeholder="xxx.xxx.xxx-xx"
               placeholderTextColor="#999"
               keyboardType="number-pad"
               value={cpf}
               onChangeText={(value) => {
-                setCpf(value);
+                const masked = maskCpf(value);
+                setCpf(masked);
                 setCpfError('');
                 setFormError('');
               }}
