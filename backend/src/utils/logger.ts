@@ -1,4 +1,20 @@
 import winston from 'winston';
+import { ElasticsearchTransport, getElasticsearchTransportOptions } from '../middleware/elasticsearchTransport';
+
+const transports: winston.transport[] = [
+  new winston.transports.File({ filename: 'logs/error.log', level: 'error' }),
+  new winston.transports.File({ filename: 'logs/combined.log' })
+];
+
+// Adicionar Elasticsearch transport se estiver configurado
+if (process.env.ELASTICSEARCH_ENABLED === 'true' || process.env.NODE_ENV === 'production') {
+  try {
+    const esOptions = getElasticsearchTransportOptions();
+    transports.push(new ElasticsearchTransport(esOptions));
+  } catch (error) {
+    console.warn('Failed to initialize Elasticsearch transport:', error);
+  }
+}
 
 const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || 'info',
@@ -9,10 +25,7 @@ const logger = winston.createLogger({
     winston.format.json()
   ),
   defaultMeta: { service: 'neuroxp-api' },
-  transports: [
-    new winston.transports.File({ filename: 'logs/error.log', level: 'error' }),
-    new winston.transports.File({ filename: 'logs/combined.log' })
-  ]
+  transports
 });
 
 if (process.env.NODE_ENV !== 'production') {

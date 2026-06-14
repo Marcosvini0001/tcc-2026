@@ -6,6 +6,8 @@ import path from 'node:path';
 import userRoutes from './routes/userRoutes';
 import admRoutes from './routes/admRoutes';
 import { requestIdMiddleware } from './middleware/requestIdMiddleware';
+import { metricsMiddleware, metricsEndpoint } from './middleware/metricsMiddleware';
+import { RateLimiters } from './middleware/rateLimitMiddleware';
 import logger from './utils/logger';
 import './models/userModels';
 import './models/admModels';
@@ -15,14 +17,32 @@ import './models/taskModels';
 const app = express();
 const uploadsDir = path.resolve(process.cwd(), 'uploads');
 
+// Configurar rate limiters
+const generalRateLimit = RateLimiters.general();
+const authRateLimit = RateLimiters.auth();
+
+// Middlewares globais
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(requestIdMiddleware);
+app.use(metricsMiddleware);
+app.use(generalRateLimit.middleware());
 app.use('/uploads', express.static(uploadsDir));
 
+// Health check com informações básicas
 app.get('/health', (_req, res) => {
-  res.json({ status: 'ok' });
+  res.json({ 
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+  });
 });
+
+// Endpoint de métricas
+app.get('/metrics', metricsEndpoint);
+
+// Rate limit mais estrito para autenticação
+app.use('/auth', authRateLimit.middleware());
 
 app.use('/users', userRoutes);
 app.use('/adms', admRoutes);
