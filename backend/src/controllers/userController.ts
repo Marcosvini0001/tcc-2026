@@ -31,9 +31,6 @@ const toSafeNumber = (value: unknown) => {
   return Number.isFinite(parsedValue) ? parsedValue : 0;
 };
 
-/**
- * Controlador que registra um novo usuário e devolve token de acesso.
- */
 export const createUser = async (req: Request, res: Response) => {
   try {
     const name = normalizeText(req.body.name);
@@ -155,9 +152,6 @@ export const createUser = async (req: Request, res: Response) => {
   }
 };
 
-/**
- * Controlador de login que valida credenciais e retorna token JWT.
- */
 export const loginUser = async (req: Request, res: Response) => {
   try {
     const email = normalizeEmail(req.body.email);
@@ -636,9 +630,6 @@ export const getUserTasks = async (req: Request, res: Response) => {
   }
 };
 
-/**
- * Controlador que marca uma tarefa como concluida para o usuario autenticado.
- */
 export const completeTask = async (req: Request, res: Response) => {
   try {
     const { id, taskId } = req.params;

@@ -20,10 +20,6 @@ import { requireAdmin, requireAuth, requireUserAccess } from '../middleware/auth
 
 const router = Router();
 
-/**
- * Rotas do recurso de usuário.
- * Inclui autenticação, gerenciamento de amigos, tarefas e ranking.
- */
 router.post('/', createUser);
 router.post('/login', loginUser);
 router.post('/forgot-password', forgotPassword);

@@ -1,10 +1,6 @@
 import { NextFunction, Request, Response } from 'express';
 import { AuthRole, verifyAccessToken } from '../services/authService';
 
-/**
- * Extrai o token Bearer do cabeçalho Authorization.
- * Retorna null se o cabeçalho estiver ausente ou mal formado.
- */
 const getBearerToken = (authorizationHeader?: string) => {
   if (!authorizationHeader) {
     return null;
@@ -18,10 +14,6 @@ const getBearerToken = (authorizationHeader?: string) => {
   return token.trim();
 };
 
-/**
- * Middleware que exige autenticação e valida token JWT.
- * Se roles forem fornecidos, verifica se o usuário tem permissão para o recurso.
- */
 export const requireAuth = (allowedRoles?: AuthRole[]) => {
   return (req: Request, res: Response, next: NextFunction) => {
     const token = getBearerToken(req.headers.authorization);
@@ -45,9 +37,6 @@ export const requireAuth = (allowedRoles?: AuthRole[]) => {
   };
 };
 
-/**
- * Middleware que exige que o usuário autenticado seja um administrador.
- */
 export const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
   if (!req.auth || req.auth.role !== 'admin') {
     return res.status(403).json({ message: 'Admin access required' });

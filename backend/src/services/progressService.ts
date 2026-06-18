@@ -20,9 +20,6 @@ export type UserProgressSummary = TaskProgressSummary & {
   progressPercent: number;
 };
 
-/**
- * Pontos necessários para subir de nível e bônus por amigos.
- */
 const LEVEL_STEP = 250;
 const FRIEND_BONUS_POINTS = 30;
 
@@ -34,10 +31,6 @@ const toSafeInteger = (value: number) => {
   return Math.max(0, Math.trunc(value));
 };
 
-/**
- * Calcula pontos da atividade com base em palavras-chave.
- * Atividades mais produtivas recebem mais pontos.
- */
 export const getActivityPoints = (activity: string) => {
   const normalized = activity.toLowerCase();
 
@@ -72,10 +65,6 @@ export const getActivityPoints = (activity: string) => {
   return 40;
 };
 
-/**
- * Converte a string de data agendada em objeto Date.
- * Retorna null para valor vazio ou para qualquer valor que não seja uma data válida.
- */
 export const parseScheduledFor = (value: unknown) => {
   if (typeof value !== 'string') {
     return null;
@@ -87,18 +76,32 @@ export const parseScheduledFor = (value: unknown) => {
   }
 
   const normalizedValue = trimmedValue.replace(/\s+/g, '');
+
   const isoMatch = normalizedValue.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  const slashMatch = normalizedValue.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  const dashMatch = normalizedValue.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+
+  const slashFullMatch = normalizedValue.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+
+  const dashFullMatch = normalizedValue.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+
+  const dotMatch = normalizedValue.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+
+  const slashShortMatch = normalizedValue.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/);
 
   let parsedDate: Date;
 
   if (isoMatch) {
     parsedDate = new Date(`${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`);
-  } else if (slashMatch) {
-    parsedDate = new Date(`${slashMatch[3]}-${slashMatch[2]}-${slashMatch[1]}`);
-  } else if (dashMatch) {
-    parsedDate = new Date(`${dashMatch[3]}-${dashMatch[2]}-${dashMatch[1]}`);
+  } else if (slashFullMatch) {
+    parsedDate = new Date(`${slashFullMatch[3]}-${String(slashFullMatch[2]).padStart(2, '0')}-${String(slashFullMatch[1]).padStart(2, '0')}`);
+  } else if (dashFullMatch) {
+    parsedDate = new Date(`${dashFullMatch[3]}-${String(dashFullMatch[2]).padStart(2, '0')}-${String(dashFullMatch[1]).padStart(2, '0')}`);
+  } else if (dotMatch) {
+    parsedDate = new Date(`${dotMatch[3]}-${String(dotMatch[2]).padStart(2, '0')}-${String(dotMatch[1]).padStart(2, '0')}`);
+  } else if (slashShortMatch) {
+
+    const year = parseInt(slashShortMatch[3], 10);
+    const fullYear = year < 50 ? 2000 + year : 1900 + year;
+    parsedDate = new Date(`${fullYear}-${String(slashShortMatch[2]).padStart(2, '0')}-${String(slashShortMatch[1]).padStart(2, '0')}`);
   } else {
     parsedDate = new Date(normalizedValue);
   }
@@ -110,9 +113,6 @@ export const parseScheduledFor = (value: unknown) => {
   return parsedDate;
 };
 
-/**
- * Constroi um resumo de progresso de tarefas a partir de valores brutos.
- */
 export const buildTaskProgressSummary = (
   totalTasks: number,
   completedTasks: number,
@@ -129,9 +129,6 @@ export const buildTaskProgressSummary = (
   };
 };
 
-/**
- * Calcula o resumo de progresso com base na lista de tarefas do usuário.
- */
 export const getTaskProgressSummary = (tasks: ProgressTask[]): TaskProgressSummary => {
   return tasks.reduce<TaskProgressSummary>((summary, task) => {
     summary.totalTasks += 1;
@@ -147,9 +144,6 @@ export const getTaskProgressSummary = (tasks: ProgressTask[]): TaskProgressSumma
   }, buildTaskProgressSummary(0, 0, 0));
 };
 
-/**
- * Calcula o nível atual, progresso e pontos necessários para subir de nível.
- */
 export const getLevelSummary = (points: number) => {
   const safePoints = Math.max(0, points);
   const level = Math.max(1, Math.floor(safePoints / LEVEL_STEP) + 1);

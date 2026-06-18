@@ -1,7 +1,4 @@
-/**
- * Configuração de Elasticsearch para Winston Logger
- * Envia logs para Elasticsearch para visualização no Kibana
- */
+
 
 import TransportStream = require('winston-transport');
 import http from 'http';
@@ -13,9 +10,6 @@ interface ElasticsearchTransportOptions extends TransportStream.TransportStreamO
   port?: number;
 }
 
-/**
- * Transport customizado para enviar logs ao Elasticsearch
- */
 export class ElasticsearchTransport extends TransportStream {
   private index: string;
   private host: string;
@@ -66,7 +60,7 @@ export class ElasticsearchTransport extends TransportStream {
     });
 
     req.on('error', (error) => {
-      // Log local se falhar envio para Elasticsearch
+
       console.error('Error sending log to Elasticsearch:', error);
       if (callback) callback(error);
     });
@@ -76,9 +70,6 @@ export class ElasticsearchTransport extends TransportStream {
   }
 }
 
-/**
- * Retorna opções de transporte para Elasticsearch
- */
 export function getElasticsearchTransportOptions(): ElasticsearchTransportOptions {
   return {
     index: 'tcc-logs',

@@ -180,4 +180,28 @@ describe('Qualidade dos testes e foco em testabilidade', () => {
       });
     });
   });
+
+  it('valida que atividades com data sao aceitas', () => {
+    cy.buildUserPayload('fluxo-data-futura').then((user) => {
+      cy.registerUserByApi(user).then((session) => {
+        cy.visitWithSession('/dashboard', session);
+        cy.contains('Cadastrar atividade', { timeout: 15000 }).should('exist');
+
+        // Preencher nome da atividade
+        cy.fillInput('[data-testid="dashboard-activity-input"]', 'Estudar por 30 minutos');
+
+        // Agendar para amanhã
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const formattedDate = tomorrow.toISOString().split('T')[0];
+
+        cy.fillInput('[data-testid="dashboard-scheduled-input"]', formattedDate);
+        cy.tapElement('[data-testid="dashboard-save-task-button"]');
+
+        // Verificar que a atividade foi criada com sucesso
+        cy.contains('Atividade criada', { timeout: 10000 }).should('exist');
+        cy.contains('Atividade cadastrada com sucesso.').should('exist');
+      });
+    });
+  });
 });

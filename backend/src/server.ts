@@ -4,14 +4,12 @@ import mysql from 'mysql2/promise';
 import app from './app';
 import sequelize from './config/database';
 import logger from './utils/logger';
+import Adm from './models/admModels';
+import { hashPassword } from './services/authService';
 
 const PORT = Number(process.env.PORT || 3000);
 const dbType = process.env.DB_TYPE?.trim().toLowerCase() || 'sqlite';
 
-/**
- * Garante que o banco de dados do sistema exista antes de iniciar a aplicação.
- * Este passo é necessário apenas para MySQL; SQLite é criado automaticamente.
- */
 const ensureDatabaseExists = async () => {
   const dbHost = process.env.DB_HOST || 'localhost';
   const dbPort = Number(process.env.DB_PORT || 3306);
@@ -37,10 +35,32 @@ const ensureDatabaseExists = async () => {
   }
 };
 
-/**
- * Inicia o servidor Express, garantindo diretório de uploads e sincronizando o banco.
- * Usa timeout em operações demoradas para não travar o startup indefinidamente.
- */
+const ensureAdminExists = async () => {
+  try {
+    const admCount = await Adm.count();
+
+    if (admCount === 0) {
+      const passwordHash = await hashPassword('Admin123!');
+      await Adm.create({
+        name: 'Admin',
+        email: 'admin@neuroxp.com',
+        password: passwordHash,
+      });
+      console.log('startServer: admin user created (email: admin@neuroxp.com, password: Admin123!)');
+      logger.info('Admin user created on first startup', {
+        email: 'admin@neuroxp.com',
+        temporaryPassword: 'Admin123!',
+      });
+    } else {
+      console.log('startServer: admin user already exists');
+    }
+  } catch (err) {
+    logger.warn('startServer: ensureAdminExists failed', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+};
+
 const startServer = async () => {
   try {
     if (dbType === 'mysql') {
@@ -83,6 +103,8 @@ const startServer = async () => {
     } catch (err) {
       console.warn('startServer: sequelize.sync failed or timed out, continuing startup', err instanceof Error ? err.message : String(err));
     }
+
+    await ensureAdminExists();
 
     app.listen(PORT, () => {
       logger.info(`Server running on port ${PORT}`);

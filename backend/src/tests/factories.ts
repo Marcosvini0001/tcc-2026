@@ -5,11 +5,6 @@ import UserFriend from '../models/userFriendModels';
 import Adm from '../models/admModels';
 import bcryptjs from 'bcryptjs';
 
-/**
- * Factory para criação de dados de teste
- * Segue o padrão Builder para facilitar customização
- */
-
 export class UserFactory {
   private static generateFriendCode(): string {
     return Math.random().toString(36).substring(2, 7).toUpperCase();

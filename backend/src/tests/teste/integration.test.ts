@@ -1,13 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import request from 'supertest';
 import express from 'express';
-import sequelize from '../config/database';
-import User from '../models/userModels';
-import Task from '../models/taskModels';
-import UserFriend from '../models/userFriendModels';
-import Adm from '../models/admModels';
-import { UserFactory, TaskFactory, UserFriendFactory } from './factories';
-import { ApiTestHelper, RequestBuilder, AssertionHelper } from './helpers';
+import sequelize from '../../config/database';
+import User from '../../models/userModels';
+import Task from '../../models/taskModels';
+import UserFriend from '../../models/userFriendModels';
+import Adm from '../../models/admModels';
+import { UserFactory, TaskFactory, UserFriendFactory } from '../factories';
+import { ApiTestHelper, RequestBuilder, AssertionHelper } from '../helpers';
 
 // Mock do app para testes
 let app: ReturnType<typeof express>;

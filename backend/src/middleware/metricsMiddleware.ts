@@ -1,9 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import logger from '../utils/logger';
 
-/**
- * Métricas de performance da aplicação
- */
 export interface PerformanceMetrics {
   totalRequests: number;
   totalErrors: number;
@@ -24,9 +21,6 @@ export interface EndpointMetrics {
   responseTimes: number[];
 }
 
-/**
- * Singleton para gerenciar métricas da aplicação
- */
 class MetricsCollector {
   private static instance: MetricsCollector;
   private metrics: PerformanceMetrics;
@@ -48,9 +42,7 @@ class MetricsCollector {
     return MetricsCollector.instance;
   }
 
-  /**
-   * Registra uma requisição
-   */
+  
   recordRequest(
     method: string,
     path: string,
@@ -61,7 +53,6 @@ class MetricsCollector {
     const key = `${method} ${path}`;
     this.metrics.totalRequests++;
 
-    // Atualizar ou criar métrica de endpoint
     if (!this.metrics.endpoints.has(key)) {
       this.metrics.endpoints.set(key, {
         method,
@@ -80,16 +71,13 @@ class MetricsCollector {
     endpointMetric.totalRequests++;
     endpointMetric.responseTimes.push(responseTime);
 
-    // Atualizar tempo médio
     const totalTime = endpointMetric.responseTimes.reduce((a, b) => a + b, 0);
     endpointMetric.averageResponseTime = totalTime / endpointMetric.responseTimes.length;
 
-    // Calcular percentis
     const sorted = [...endpointMetric.responseTimes].sort((a, b) => a - b);
     endpointMetric.p95ResponseTime = sorted[Math.ceil(sorted.length * 0.95) - 1] || 0;
     endpointMetric.p99ResponseTime = sorted[Math.ceil(sorted.length * 0.99) - 1] || 0;
 
-    // Contar sucesso/erro
     if (statusCode >= 400) {
       endpointMetric.failedRequests++;
       this.metrics.totalErrors++;
@@ -97,14 +85,12 @@ class MetricsCollector {
       endpointMetric.successfulRequests++;
     }
 
-    // Calcular média geral
     const allTimes = Array.from(this.metrics.endpoints.values())
       .flatMap(e => e.responseTimes);
     this.metrics.averageResponseTime = allTimes.length > 0
       ? allTimes.reduce((a, b) => a + b, 0) / allTimes.length
       : 0;
 
-    // Log com detalhes
     logger.info('Request metrics recorded', {
       requestId,
       method,
@@ -119,9 +105,7 @@ class MetricsCollector {
     });
   }
 
-  /**
-   * Retorna métricas atualizadas
-   */
+  
   getMetrics(): PerformanceMetrics {
     return {
       ...this.metrics,
@@ -129,17 +113,13 @@ class MetricsCollector {
     };
   }
 
-  /**
-   * Retorna métricas de um endpoint específico
-   */
+  
   getEndpointMetrics(method: string, path: string): EndpointMetrics | undefined {
     const key = `${method} ${path}`;
     return this.metrics.endpoints.get(key);
   }
 
-  /**
-   * Reseta as métricas
-   */
+  
   reset(): void {
     this.metrics = {
       totalRequests: 0,
@@ -151,15 +131,10 @@ class MetricsCollector {
   }
 }
 
-/**
- * Middleware para coleta de métricas de performance
- * Mede tempo de resposta de cada requisição
- */
 export const metricsMiddleware = (req: Request, res: Response, next: NextFunction): void => {
   const startTime = Date.now();
   const requestId = req.headers['x-request-id'] as string || 'unknown';
 
-  // Interceptar o envio da resposta
   const originalSend = res.send;
   res.send = function (data: any): any {
     const responseTime = Date.now() - startTime;
@@ -173,16 +148,12 @@ export const metricsMiddleware = (req: Request, res: Response, next: NextFunctio
       requestId
     );
 
-    // Chamar o método original
     return originalSend.call(this, data);
   };
 
   next();
 };
 
-/**
- * Middleware para retornar métricas
- */
 export const metricsEndpoint = (req: Request, res: Response): void => {
   const metricsCollector = MetricsCollector.getInstance();
   const metrics = metricsCollector.getMetrics();

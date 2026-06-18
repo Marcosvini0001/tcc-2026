@@ -7,33 +7,26 @@ import {
   getUserProgressSummary,
   getUserProgressSummaryFromStats,
   parseScheduledFor,
-} from './progressService';
+} from '../progressService';
 
 describe('progressService - Activity Points', () => {
   it('deve classificar atividade de estudo com 120 pontos', () => {
-    // Arrange
     const activity = 'Estudar Typescript';
 
-    // Act
     const points = getActivityPoints(activity);
 
-    // Assert
     expect(points).toBe(120);
   });
 
   it('deve classificar atividade de organização com 60 pontos', () => {
-    // Arrange
     const activity = 'Organizar a mesa';
 
-    // Act
     const points = getActivityPoints(activity);
 
-    // Assert
     expect(points).toBe(60);
   });
 
   it('deve classificar atividades de baixa prioridade com pontos menores', () => {
-    // Arrange
     const lowPriorityActivities = ['Ver meme', 'Responder e-mails'];
 
     // Act & Assert

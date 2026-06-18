@@ -50,6 +50,18 @@ const getTodayRange = () => {
   return { start, end };
 };
 
+export const isDateInPast = (date: Date | null | undefined): boolean => {
+  if (!date) return false;
+
+  const today = new Date();
+  const scheduledDate = new Date(date);
+
+  const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const scheduledDateOnly = new Date(scheduledDate.getFullYear(), scheduledDate.getMonth(), scheduledDate.getDate());
+
+  return scheduledDateOnly < todayDate; // true = está no passado
+};
+
 const countPersonalizedTasksToday = async (userId: number) => {
   const { start, end } = getTodayRange();
 

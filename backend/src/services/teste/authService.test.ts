@@ -6,7 +6,7 @@ import {
   validatePasswordStrength,
   verifyAccessToken,
   verifyPassword,
-} from './authService';
+} from '../authService';
 
 describe('authService - Password Validation', () => {
   it('deve rejeitar senha com menos de 8 caracteres', () => {

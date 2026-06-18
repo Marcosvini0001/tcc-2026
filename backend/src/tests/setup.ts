@@ -1,31 +1,19 @@
-/**
- * Configuração de testes
- * Usa SQLite em memória para testes isolados
- */
+
 
 import { Sequelize } from 'sequelize';
 import path from 'path';
 
-/**
- * Cria uma instância Sequelize para testes
- * Por padrão usa SQLite em memória (mais rápido e isolado)
- */
 export function createTestDatabase(): Sequelize {
   const sequelize = new Sequelize({
     dialect: 'sqlite',
     storage: ':memory:', // Banco em memória
     logging: false, // Desabilitar logs SQL durante testes
-    // Alternativa: usar arquivo temporário
-    // storage: path.join(process.cwd(), 'test-db.sqlite')
+
   });
 
   return sequelize;
 }
 
-/**
- * Cria uma instância para testes com MariaDB/MySQL
- * Útil para testes de integração que precisam do BD real
- */
 export function createTestDatabaseMySQL(): Sequelize {
   return new Sequelize({
     dialect: 'mysql',
@@ -38,9 +26,6 @@ export function createTestDatabaseMySQL(): Sequelize {
   });
 }
 
-/**
- * Limpa todas as tabelas (útil para limpeza entre testes)
- */
 export async function truncateAllTables(sequelize: Sequelize): Promise<void> {
   const tables = Object.values(sequelize.models);
   for (const table of tables) {
@@ -48,9 +33,6 @@ export async function truncateAllTables(sequelize: Sequelize): Promise<void> {
   }
 }
 
-/**
- * Fecha a conexão com o banco
- */
 export async function closeDatabase(sequelize: Sequelize): Promise<void> {
   await sequelize.close();
 }

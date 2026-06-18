@@ -6,7 +6,6 @@ const transports: winston.transport[] = [
   new winston.transports.File({ filename: 'logs/combined.log' })
 ];
 
-// Adicionar Elasticsearch transport se estiver configurado
 if (process.env.ELASTICSEARCH_ENABLED === 'true' || process.env.NODE_ENV === 'production') {
   try {
     const esOptions = getElasticsearchTransportOptions();
