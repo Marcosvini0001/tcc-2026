@@ -676,6 +676,37 @@ export const completeTask = async (req: Request, res: Response) => {
   }
 };
 
+export const deleteTask = async (req: Request, res: Response) => {
+  try {
+    const { id, taskId } = req.params;
+
+    const user = await User.findByPk(id as string);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const userId = user.get('id') as number;
+    const parsedTaskId = Number(taskId);
+
+    if (!Number.isFinite(parsedTaskId) || parsedTaskId <= 0) {
+      return res.status(400).json({ message: 'Invalid task id' });
+    }
+
+    const deleted = await Task.destroy({
+      where: { id: parsedTaskId, userId },
+    });
+
+    if (deleted === 0) {
+      return res.status(404).json({ message: 'Task not found' });
+    }
+
+    return res.status(204).send();
+  } catch (error) {
+    logger.error('Error deleting task', { requestId: req.requestId, error: error instanceof Error ? error.message : String(error) });
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
 export const deleteUser = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;

@@ -1,7 +1,8 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { Request, Response } from 'express';
-import { createUser, loginUser, createTask, completeTask } from '../userController';
+import { createUser, loginUser, createTask, completeTask, deleteTask } from '../userController';
 import User from '../../models/userModels';
+import Task from '../../models/taskModels';
 import * as authService from '../../services/authService';
 import * as taskService from '../../services/taskService';
 
@@ -274,6 +275,62 @@ describe('Controllers', () => {
 
       // This is complex to test without full mocking setup
       expect(typeof completeTask).toBe('function');
+    });
+  });
+
+  describe('User Controller - deleteTask', () => {
+    it('should return 404 if user not found', async () => {
+      (User.findByPk as any).mockResolvedValue(null);
+
+      const req = {
+        params: { id: '999', taskId: '1' }
+      } as unknown as Request;
+      const res = {
+        status: vi.fn().mockReturnThis(),
+        json: vi.fn()
+      } as unknown as Response;
+
+      await deleteTask(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({ message: 'User not found' });
+    });
+
+    it('should return 404 if task is not found', async () => {
+      (User.findByPk as any).mockResolvedValue({ get: vi.fn().mockReturnValue(1) });
+      (Task.destroy as any).mockResolvedValue(0);
+
+      const req = {
+        params: { id: '1', taskId: '999' }
+      } as unknown as Request;
+      const res = {
+        status: vi.fn().mockReturnThis(),
+        json: vi.fn(),
+      } as unknown as Response;
+
+      await deleteTask(req, res);
+
+      expect(Task.destroy).toHaveBeenCalledWith({ where: { id: 999, userId: 1 } });
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Task not found' });
+    });
+
+    it('should return 204 when task is deleted', async () => {
+      (User.findByPk as any).mockResolvedValue({ get: vi.fn().mockReturnValue(1) });
+      (Task.destroy as any).mockResolvedValue(1);
+
+      const req = {
+        params: { id: '1', taskId: '10' }
+      } as unknown as Request;
+      const res = {
+        status: vi.fn().mockReturnThis(),
+        send: vi.fn(),
+      } as unknown as Response;
+
+      await deleteTask(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(204);
+      expect(res.send).toHaveBeenCalled();
     });
   });
 });

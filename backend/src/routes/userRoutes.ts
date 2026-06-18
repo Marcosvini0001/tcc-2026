@@ -15,6 +15,7 @@ import {
   createTask,
   getUserTasks,
   completeTask,
+  deleteTask,
 } from '../controllers/userController';
 import { requireAdmin, requireAuth, requireUserAccess } from '../middleware/authMiddleware';
 
@@ -38,5 +39,6 @@ router.delete('/:id/friends/:friendId', requireUserAccess, removeFriend);
 router.post('/:id/tasks', requireUserAccess, createTask);
 router.get('/:id/tasks', requireUserAccess, getUserTasks);
 router.patch('/:id/tasks/:taskId/complete', requireUserAccess, completeTask);
+router.delete('/:id/tasks/:taskId', requireUserAccess, deleteTask);
 
 export default router;
