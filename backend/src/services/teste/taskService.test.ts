@@ -56,16 +56,16 @@ describe('taskService - createTaskForUser', () => {
     const userId = 1;
     const activity = 'Estudar por 30 minutos';
     const today = new Date();
-    const mockTask = { id: 1, userId, activity, points: 5, completed: false };
+    const taskData = { id: 1, userId, activity, points: 5, completed: false };
 
-    (User.findByPk as any).mockResolvedValue({ id: userId });
-    (Task.findAll as any).mockResolvedValue([]);
-    (Task.create as any).mockResolvedValue(mockTask);
+    mockUser.findByPk.mockResolvedValue({ id: userId } as any);
+    mockTask.findAll.mockResolvedValue([]);
+    mockTask.create.mockResolvedValue(taskData as any);
 
     const result = await createTaskForUser(userId, activity, null, today);
 
-    expect(result).toEqual(mockTask);
-    expect(Task.create).toHaveBeenCalled();
+    expect(result).toEqual(taskData);
+    expect(mockTask.create).toHaveBeenCalled();
   });
 
   it('deve aceitar atividade com data no futuro', async () => {
@@ -73,25 +73,23 @@ describe('taskService - createTaskForUser', () => {
     const activity = 'Estudar por 30 minutos';
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
-    const mockTask = { id: 1, userId, activity, points: 5, completed: false };
+    const taskData = { id: 1, userId, activity, points: 5, completed: false };
 
-    (User.findByPk as any).mockResolvedValue({ id: userId });
-    (Task.findAll as any).mockResolvedValue([]);
-    (Task.create as any).mockResolvedValue(mockTask);
+    mockUser.findByPk.mockResolvedValue({ id: userId } as any);
+    mockTask.findAll.mockResolvedValue([]);
+    mockTask.create.mockResolvedValue(taskData as any);
 
     const result = await createTaskForUser(userId, activity, null, tomorrow);
 
-    expect(result).toEqual(mockTask);
-    expect(Task.create).toHaveBeenCalled();
+    expect(result).toEqual(taskData);
+    expect(mockTask.create).toHaveBeenCalled();
   });
 
   it('deve rejeitar se usuário não encontrado', async () => {
-
     const userId = 999;
     const activity = 'Estudar por 30 minutos';
 
-    (User.findByPk as any).mockResolvedValue(null);
-
+    mockUser.findByPk.mockResolvedValue(null as any);
 
     await expect(createTaskForUser(userId, activity)).rejects.toThrow(
       new TaskServiceError('User not found', 404)
@@ -99,12 +97,10 @@ describe('taskService - createTaskForUser', () => {
   });
 
   it('deve rejeitar atividade vazia', async () => {
-
     const userId = 1;
     const activity = '   ';
 
-    (User.findByPk as any).mockResolvedValue({ id: userId });
-
+    mockUser.findByPk.mockResolvedValue({ id: userId } as any);
 
     await expect(createTaskForUser(userId, activity)).rejects.toThrow(
       new TaskServiceError('activity is required', 400)
@@ -112,7 +108,6 @@ describe('taskService - createTaskForUser', () => {
   });
 
   it('deve rejeitar terceira atividade personalizada no mesmo dia', async () => {
-
     const userId = 1;
     const activity = 'Fazer exercício de yoga';
     const mockTasks = [
@@ -120,8 +115,8 @@ describe('taskService - createTaskForUser', () => {
       { id: 2, userId, activity: 'Pintar', createdAt: new Date() },
     ];
 
-    (User.findByPk as any).mockResolvedValue({ id: userId });
-    (Task.findAll as any).mockResolvedValue(mockTasks);
+    mockUser.findByPk.mockResolvedValue({ id: userId } as any);
+    mockTask.findAll.mockResolvedValue(mockTasks as any);
 
     await expect(createTaskForUser(userId, activity)).rejects.toThrow(
       new TaskServiceError('Você atingiu o limite de 2 atividades personalizadas por hoje.', 400)
@@ -136,8 +131,8 @@ describe('taskService - createTaskForUser', () => {
       { id: 2, userId, activity: 'Estudar por 30 minutos', createdAt: new Date() },
     ];
 
-    (User.findByPk as any).mockResolvedValue({ id: userId });
-    (Task.findAll as any).mockResolvedValue(mockTasks);
+    mockUser.findByPk.mockResolvedValue({ id: userId } as any);
+    mockTask.findAll.mockResolvedValue(mockTasks as any);
 
     await expect(createTaskForUser(userId, activity)).rejects.toThrow(
       new TaskServiceError('Você já realizou esta atividade 2 vezes hoje.', 400)
@@ -145,35 +140,30 @@ describe('taskService - createTaskForUser', () => {
   });
 
   it('deve permitir segunda ocorrência de atividade padrão se houver apenas uma hoje', async () => {
-  
     const userId = 1;
     const activity = 'Estudar por 30 minutos';
     const mockTasks = [
       { id: 1, userId, activity: 'Estudar por 30 minutos', createdAt: new Date() },
     ];
-    const mockTask = { id: 2, userId, activity, points: 5, completed: false };
+    const taskData = { id: 2, userId, activity, points: 5, completed: false };
 
-    (User.findByPk as any).mockResolvedValue({ id: userId });
-    (Task.findAll as any).mockResolvedValue(mockTasks);
-    (Task.create as any).mockResolvedValue(mockTask);
+    mockUser.findByPk.mockResolvedValue({ id: userId } as any);
+    mockTask.findAll.mockResolvedValue(mockTasks as any);
+    mockTask.create.mockResolvedValue(taskData as any);
 
-    // Act
     const result = await createTaskForUser(userId, activity);
 
- 
-    expect(result).toEqual(mockTask);
-    expect(Task.create).toHaveBeenCalled();
+    expect(result).toEqual(taskData);
+    expect(mockTask.create).toHaveBeenCalled();
   });
 
   it('deve atribuir 5 pontos para atividade padrão', async () => {
-
     const userId = 1;
     const activity = 'Estudar por 30 minutos';
 
-    (User.findByPk as any).mockResolvedValue({ id: userId });
-    (Task.findAll as any).mockResolvedValue([]);
-    (Task.create as any).mockImplementation(({ points }) => ({ id: 1, points, activity }));
-
+    mockUser.findByPk.mockResolvedValue({ id: userId } as any);
+    mockTask.findAll.mockResolvedValue([]);
+    mockTask.create.mockImplementation(({ points }: any) => Promise.resolve({ id: 1, points, activity } as any));
 
     const result = await createTaskForUser(userId, activity);
 
@@ -181,14 +171,12 @@ describe('taskService - createTaskForUser', () => {
   });
 
   it('deve atribuir pontos aleatório entre 5 e 8 para atividade personalizada', async () => {
-
     const userId = 1;
     const activity = 'Atividade customizada aleatória';
 
-    (User.findByPk as any).mockResolvedValue({ id: userId });
-    (Task.findAll as any).mockResolvedValue([]);
-    (Task.create as any).mockImplementation(({ points }) => ({ id: 1, points, activity }));
-
+    mockUser.findByPk.mockResolvedValue({ id: userId } as any);
+    mockTask.findAll.mockResolvedValue([]);
+    mockTask.create.mockImplementation(({ points }: any) => Promise.resolve({ id: 1, points, activity } as any));
 
     let result = await createTaskForUser(userId, activity);
 
@@ -203,11 +191,11 @@ describe('taskService - createTaskForUser', () => {
     const userId = 1;
     const activity = 'Estudar por 30 minutos';
     const description = 'Estudar React Hooks';
-    const mockTask = { id: 1, userId, activity, description, points: 5 };
+    const taskData = { id: 1, userId, activity, description, points: 5 };
 
-    (User.findByPk as any).mockResolvedValue({ id: userId });
-    (Task.findAll as any).mockResolvedValue([]);
-    (Task.create as any).mockResolvedValue(mockTask);
+    mockUser.findByPk.mockResolvedValue({ id: userId } as any);
+    mockTask.findAll.mockResolvedValue([]);
+    mockTask.create.mockResolvedValue(taskData as any);
 
     const result = await createTaskForUser(userId, activity, description);
 
