@@ -12,14 +12,11 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
-import * as ImagePicker from 'expo-image-picker';
 import {
-  apiAnalyzeTaskPhoto,
   apiCompleteTask,
   apiCreateTask,
   apiGetTasks,
   apiGetUserById,
-  apiUploadTaskPhoto,
   type ApiTask,
   type ApiUser,
   type ApiUserProfile,
@@ -43,12 +40,10 @@ type TaskListItem =
 export default function DashboardScreen() {
   const router = useRouter();
   const [tasks, setTasks] = React.useState<ApiTask[]>([]);
-  const [selectedPhotoUri, setSelectedPhotoUri] = React.useState<string | null>(null);
   const [activityName, setActivityName] = React.useState('');
   const [scheduledForInput, setScheduledForInput] = React.useState('');
   const [loadingTasks, setLoadingTasks] = React.useState(true);
   const [savingTask, setSavingTask] = React.useState(false);
-  const [analyzingTaskId, setAnalyzingTaskId] = React.useState<number | null>(null);
   const [currentUser, setCurrentUser] = React.useState<ApiUser | null>(getCurrentUser());
   const [userProfile, setUserProfile] = React.useState<ApiUserProfile | null>(null);
 
@@ -144,40 +139,6 @@ export default function DashboardScreen() {
     ...completedTasks.map((task) => ({ type: 'task' as const, id: `completed-${task.id}`, task })),
   ];
 
-  const handlePickFromGallery = async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert('Permissao negada', 'Permita acesso a galeria para escolher uma foto.');
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      quality: 0.8,
-    });
-
-    if (!result.canceled && result.assets.length > 0) {
-      setSelectedPhotoUri(result.assets[0].uri);
-    }
-  };
-
-  const handleTakePhoto = async () => {
-    const permission = await ImagePicker.requestCameraPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert('Permissao negada', 'Permita acesso a camera para tirar uma foto.');
-      return;
-    }
-
-    const result = await ImagePicker.launchCameraAsync({
-      allowsEditing: true,
-      quality: 0.8,
-    });
-
-    if (!result.canceled && result.assets.length > 0) {
-      setSelectedPhotoUri(result.assets[0].uri);
-    }
-  };
 
   const handleCreateTask = async () => {
     if (!currentUser) {
@@ -190,33 +151,18 @@ export default function DashboardScreen() {
       return;
     }
 
-    const hasPhoto = Boolean(selectedPhotoUri);
-
     try {
       setSavingTask(true);
 
-      if (selectedPhotoUri) {
-        await apiUploadTaskPhoto(
-          currentUser.id,
-          selectedPhotoUri,
-          activityName.trim(),
-          scheduledForInput.trim() || undefined
-        );
-      } else {
-        await apiCreateTask(currentUser.id, {
-          activity: activityName.trim(),
-          scheduledFor: scheduledForInput.trim() || undefined,
-        });
-      }
+      await apiCreateTask(currentUser.id, {
+        activity: activityName.trim(),
+        scheduledFor: scheduledForInput.trim() || undefined,
+      });
 
-      setSelectedPhotoUri(null);
       setActivityName('');
       setScheduledForInput('');
       await Promise.all([loadTasks(), loadProfile()]);
-      Alert.alert(
-        hasPhoto ? 'Tarefa criada' : 'Atividade criada',
-        hasPhoto ? 'Tarefa por foto cadastrada com sucesso.' : 'Atividade cadastrada com sucesso.'
-      );
+      Alert.alert('Atividade criada', 'Atividade cadastrada com sucesso.');
     } catch (error) {
       const message = getErrorMessage(error, 'Nao foi possivel cadastrar tarefa.');
       if (await redirectToLoginOnAuthError(message, router)) {
@@ -248,30 +194,6 @@ export default function DashboardScreen() {
     }
   };
 
-  const handleAnalyzeTask = async (taskId: number) => {
-    if (!currentUser) {
-      Alert.alert('Sessao nao encontrada', 'Faca login para reconhecer a foto.');
-      return;
-    }
-
-    try {
-      setAnalyzingTaskId(taskId);
-      const updatedTask = await apiAnalyzeTaskPhoto(currentUser.id, taskId);
-      setTasks((previousTasks) =>
-        previousTasks.map((task) => (task.id === taskId ? { ...task, analysis: updatedTask.analysis } : task))
-      );
-      Alert.alert('Analise concluida', updatedTask.analysis || 'Sem detalhes retornados.');
-    } catch (error) {
-      const message = getErrorMessage(error, 'Nao foi possivel analisar a foto.');
-      if (await redirectToLoginOnAuthError(message, router)) {
-        return;
-      }
-
-      Alert.alert('Erro', message);
-    } finally {
-      setAnalyzingTaskId(null);
-    }
-  };
 
   const formatScheduledFor = (scheduledFor?: string | null) => {
     if (!scheduledFor) {
@@ -288,30 +210,10 @@ export default function DashboardScreen() {
 
   const renderTask = ({ item }: { item: ApiTask }) => (
     <View style={styles.taskCard} testID={`dashboard-task-card-${item.id}`}>
-      {item.photoUrl ? (
-        <Image source={{ uri: item.photoUrl }} style={styles.taskPhoto} contentFit="cover" />
-      ) : (
-        <View style={styles.taskPhotoPlaceholder}>
-          <Text style={styles.taskPhotoPlaceholderText}>SEM FOTO</Text>
-        </View>
-      )}
       <View style={styles.taskContent}>
         <Text style={styles.taskTitle}>{item.activity}</Text>
         <Text style={styles.taskPoints}>{item.completed ? 'Concluida' : 'Pendente'} • +{item.points} pts</Text>
         <Text style={styles.taskMeta}>{formatScheduledFor(item.scheduledFor)}</Text>
-        {!item.photoUrl ? <Text style={styles.taskMeta}>Foto opcional nao enviada</Text> : null}
-        {item.analysis ? <Text style={styles.analysisText}>{item.analysis}</Text> : null}
-
-        {item.photoUrl ? (
-          <TouchableOpacity
-            style={[styles.analyzeButton, analyzingTaskId === item.id && styles.disabledButton]}
-            onPress={() => void handleAnalyzeTask(item.id)}
-            disabled={analyzingTaskId === item.id}>
-            <Text style={styles.analyzeButtonText}>
-              {analyzingTaskId === item.id ? 'Reconhecendo...' : 'Reconhecer foto'}
-            </Text>
-          </TouchableOpacity>
-        ) : null}
       </View>
       {!item.completed ? (
         <TouchableOpacity testID={`dashboard-task-complete-${item.id}`} onPress={() => void handleCompleteTask(item.id)} style={styles.concludeButton}>
@@ -427,25 +329,6 @@ export default function DashboardScreen() {
                 style={styles.textInput}
                 autoCapitalize="none"
               />
-
-              {selectedPhotoUri ? (
-                <Image source={{ uri: selectedPhotoUri }} style={styles.previewPhoto} contentFit="cover" />
-              ) : (
-                <View style={styles.previewPlaceholder}>
-                  <Text style={styles.previewPlaceholderText}>
-                    Nenhuma foto selecionada. A atividade pode ser salva sem imagem.
-                  </Text>
-                </View>
-              )}
-
-              <View style={styles.imageActionRow}>
-                <TouchableOpacity style={styles.secondaryButton} onPress={() => void handleTakePhoto()}>
-                  <Text style={styles.secondaryButtonText}>Camera</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.secondaryButton} testID="dashboard-gallery-button" onPress={() => void handlePickFromGallery()}>
-                  <Text style={styles.secondaryButtonText}>Galeria</Text>
-                </TouchableOpacity>
-              </View>
 
               <TouchableOpacity
                 style={[styles.createTaskButton, savingTask && styles.disabledButton]}
@@ -663,45 +546,6 @@ const styles = StyleSheet.create({
     color: '#F8FAFC',
     marginBottom: 10,
   },
-  previewPhoto: {
-    width: '100%',
-    height: 170,
-    borderRadius: 18,
-    marginBottom: 10,
-  },
-  previewPlaceholder: {
-    width: '100%',
-    height: 170,
-    backgroundColor: '#111B2C',
-    borderRadius: 18,
-    marginBottom: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-  },
-  previewPlaceholderText: {
-    fontSize: 13,
-    color: '#7C8CBF',
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  imageActionRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 10,
-  },
-  secondaryButton: {
-    flex: 1,
-    backgroundColor: '#192338',
-    borderRadius: 14,
-    paddingVertical: 12,
-  },
-  secondaryButtonText: {
-    color: '#F8FAFC',
-    textAlign: 'center',
-    fontSize: 13,
-    fontWeight: '700',
-  },
   createTaskButton: {
     backgroundColor: '#00E5A0',
     paddingVertical: 14,
@@ -764,27 +608,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#24304C',
   },
-  taskPhoto: {
-    width: 56,
-    height: 56,
-    borderRadius: 14,
-    marginRight: 12,
-    backgroundColor: '#172336',
-  },
-  taskPhotoPlaceholder: {
-    width: 56,
-    height: 56,
-    borderRadius: 14,
-    marginRight: 12,
-    backgroundColor: '#192338',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  taskPhotoPlaceholderText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#7C8CBF',
-  },
   taskContent: {
     flex: 1,
   },
@@ -803,24 +626,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#7C8CBF',
     marginTop: 2,
-  },
-  analysisText: {
-    fontSize: 12,
-    color: '#AAB3C9',
-    marginTop: 6,
-    marginBottom: 8,
-  },
-  analyzeButton: {
-    backgroundColor: '#0E1728',
-    borderRadius: 10,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    alignSelf: 'flex-start',
-  },
-  analyzeButtonText: {
-    color: '#F8FAFC',
-    fontSize: 12,
-    fontWeight: '700',
   },
   concludeButton: {
     backgroundColor: '#00E5A0',

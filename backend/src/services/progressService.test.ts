@@ -53,7 +53,7 @@ describe('progressService - Scheduled Date Parsing', () => {
     expect(parseScheduledFor('   ')).toBeNull();
   });
 
-  it('deve retornar "invalid" para data inválida', () => {
+  it('deve retornar nulo para data inválida', () => {
     // Arrange
     const invalidDate = 'not-a-date';
 
@@ -61,7 +61,7 @@ describe('progressService - Scheduled Date Parsing', () => {
     const result = parseScheduledFor(invalidDate);
 
     // Assert
-    expect(result).toBe('invalid');
+    expect(result).toBeNull();
   });
 
   it('deve converter data ISO válida para objeto Date', () => {

@@ -3,10 +3,10 @@
  * Envia logs para Elasticsearch para visualização no Kibana
  */
 
-import * as Transport from 'winston-transport';
+import TransportStream = require('winston-transport');
 import http from 'http';
 
-interface ElasticsearchTransportOptions extends Transport.TransportStreamOptions {
+interface ElasticsearchTransportOptions extends TransportStream.TransportStreamOptions {
   index?: string;
   datastream?: boolean;
   host?: string;
@@ -16,7 +16,7 @@ interface ElasticsearchTransportOptions extends Transport.TransportStreamOptions
 /**
  * Transport customizado para enviar logs ao Elasticsearch
  */
-export class ElasticsearchTransport extends Transport {
+export class ElasticsearchTransport extends TransportStream {
   private index: string;
   private host: string;
   private port: number;

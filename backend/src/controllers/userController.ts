@@ -1,7 +1,5 @@
 import { Request, Response } from 'express';
 import { Op, col, fn, literal } from 'sequelize';
-import fs from 'node:fs/promises';
-import path from 'node:path';
 import sequelize from '../config/database';
 import User from '../models/userModels';
 import UserFriend from '../models/userFriendModels';
@@ -28,23 +26,14 @@ import {
 } from '../services/progressService';
 import { EMAIL_REGEX, normalizeCpf, normalizeEmail, normalizeText } from '../utils/validation';
 
-type UploadedTaskFile = {
-  filename: string;
-};
-
-const getMimeTypeByExtension = (filename: string) => {
-  const ext = path.extname(filename).toLowerCase();
-  if (ext === '.png') return 'image/png';
-  if (ext === '.webp') return 'image/webp';
-  if (ext === '.heic') return 'image/heic';
-  return 'image/jpeg';
-};
-
 const toSafeNumber = (value: unknown) => {
   const parsedValue = Number(value);
   return Number.isFinite(parsedValue) ? parsedValue : 0;
 };
 
+/**
+ * Controlador que registra um novo usuário e devolve token de acesso.
+ */
 export const createUser = async (req: Request, res: Response) => {
   try {
     const name = normalizeText(req.body.name);
@@ -166,6 +155,9 @@ export const createUser = async (req: Request, res: Response) => {
   }
 };
 
+/**
+ * Controlador de login que valida credenciais e retorna token JWT.
+ */
 export const loginUser = async (req: Request, res: Response) => {
   try {
     const email = normalizeEmail(req.body.email);
@@ -596,20 +588,19 @@ export const removeFriend = async (req: Request, res: Response) => {
   }
 };
 
+/**
+ * Controlador que cadastra uma nova tarefa manualmente para o usuário.
+ * As tarefas nao exigem foto de comprovação e comecam como pendentes.
+ */
 export const createTask = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { photoUrl, activity, scheduledFor } = req.body;
+    const { activity, scheduledFor } = req.body;
     const normalizedActivity = normalizeText(activity);
-    const normalizedPhotoUrl = typeof photoUrl === 'string' ? photoUrl.trim() : '';
     const parsedScheduledFor = parseScheduledFor(scheduledFor);
 
     if (!normalizedActivity) {
       return res.status(400).json({ message: 'activity is required' });
-    }
-
-    if (parsedScheduledFor === 'invalid') {
-      return res.status(400).json({ message: 'scheduledFor must be a valid date' });
     }
 
     const user = await User.findByPk(id as string);
@@ -620,7 +611,6 @@ export const createTask = async (req: Request, res: Response) => {
     const task = await Task.create({
       userId: user.get('id') as number,
       activity: normalizedActivity,
-      photoUrl: normalizedPhotoUrl || null,
       points: getActivityPoints(normalizedActivity),
       completed: false,
       scheduledFor: parsedScheduledFor,
@@ -629,49 +619,6 @@ export const createTask = async (req: Request, res: Response) => {
     return res.status(201).json(sanitizeTask(task));
   } catch (error) {
     logger.error('Error creating task:', { requestId: req.requestId, error: error instanceof Error ? error.message : String(error) });
-    return res.status(500).json({ message: 'Internal server error' });
-  }
-};
-
-export const createTaskByUpload = async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const file = (req as Request & { file?: UploadedTaskFile }).file;
-    const activity = normalizeText(req.body.activity);
-    const parsedScheduledFor = parseScheduledFor(req.body.scheduledFor);
-
-    if (!file) {
-      return res.status(400).json({ message: 'photo file is required' });
-    }
-
-    if (!activity) {
-      return res.status(400).json({ message: 'activity is required' });
-    }
-
-    if (parsedScheduledFor === 'invalid') {
-      return res.status(400).json({ message: 'scheduledFor must be a valid date' });
-    }
-
-    const user = await User.findByPk(id as string);
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
-    }
-
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
-    const photoUrl = `${baseUrl}/uploads/${file.filename}`;
-
-    const task = await Task.create({
-      userId: user.get('id') as number,
-      activity,
-      photoUrl,
-      points: getActivityPoints(activity),
-      completed: false,
-      scheduledFor: parsedScheduledFor,
-    });
-
-    return res.status(201).json(sanitizeTask(task));
-  } catch (error) {
-    logger.error('Error creating task by upload:', { requestId: req.requestId, error: error instanceof Error ? error.message : String(error) });
     return res.status(500).json({ message: 'Internal server error' });
   }
 };
@@ -697,6 +644,9 @@ export const getUserTasks = async (req: Request, res: Response) => {
   }
 };
 
+/**
+ * Controlador que marca uma tarefa como concluida para o usuario autenticado.
+ */
 export const completeTask = async (req: Request, res: Response) => {
   try {
     const { id, taskId } = req.params;
@@ -739,94 +689,6 @@ export const completeTask = async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'Task not found' });
     }
     logger.error('Error completing task', { requestId: req.requestId, error: error instanceof Error ? error.message : String(error) });
-    return res.status(500).json({ message: 'Internal server error' });
-  }
-};
-
-export const analyzeTaskPhoto = async (req: Request, res: Response) => {
-  try {
-    const { id, taskId } = req.params;
-
-    const user = await User.findByPk(id as string);
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
-    }
-
-    const task = await Task.findOne({ where: { id: taskId, userId: user.get('id') as number } });
-    if (!task) {
-      return res.status(404).json({ message: 'Task not found' });
-    }
-
-    const taskPhotoUrl = task.get('photoUrl') as string | null;
-    if (!taskPhotoUrl) {
-      return res.status(400).json({ message: 'Task does not have a photo to analyze' });
-    }
-
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      return res.status(400).json({
-        message: 'GEMINI_API_KEY is not configured on backend environment',
-      });
-    }
-
-    const filename = path.basename(taskPhotoUrl);
-    const localImagePath = path.resolve(process.cwd(), 'uploads', filename);
-    const imageBuffer = await fs.readFile(localImagePath);
-    const base64Image = imageBuffer.toString('base64');
-    const mimeType = getMimeTypeByExtension(filename);
-
-    const geminiResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: 'Analise a imagem como o Google Lens: descreva objetos principais, texto visivel (OCR), contexto e uma sugestao de acao em portugues, de forma curta.',
-                },
-                {
-                  inline_data: {
-                    mime_type: mimeType,
-                    data: base64Image,
-                  },
-                },
-              ],
-            },
-          ],
-        }),
-      }
-    );
-
-    if (!geminiResponse.ok) {
-      const errorBody = await geminiResponse.text();
-      return res.status(502).json({
-        message: 'Vision provider error',
-        details: errorBody,
-      });
-    }
-
-    const data = (await geminiResponse.json()) as {
-      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-    };
-
-    const analysisText =
-      data.candidates?.[0]?.content?.parts?.map((part) => part.text ?? '').join('\n').trim() ||
-      'Nao foi possivel extrair detalhes da imagem.';
-
-    task.set('analysis', analysisText);
-    await task.save();
-
-    return res.json({
-      task: sanitizeTask(task),
-      analysis: analysisText,
-    });
-  } catch (error) {
-    logger.error('Error analyzing task photo:', { requestId: req.requestId, error: error instanceof Error ? error.message : String(error) });
     return res.status(500).json({ message: 'Internal server error' });
   }
 };

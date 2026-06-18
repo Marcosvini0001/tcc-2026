@@ -5,7 +5,6 @@ class Task extends Model {
   declare id: number;
   declare userId: number;
   declare activity: string;
-  declare photoUrl: string | null;
   declare points: number;
   declare completed: boolean;
   declare analysis: string | null;
@@ -32,10 +31,6 @@ Task.init(
     activity: {
       type: DataTypes.STRING(255),
       allowNull: false,
-    },
-    photoUrl: {
-      type: DataTypes.STRING(500),
-      allowNull: true,
     },
     points: {
       type: DataTypes.INTEGER,

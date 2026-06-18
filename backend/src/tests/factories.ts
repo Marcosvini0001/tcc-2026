@@ -15,15 +15,25 @@ export class UserFactory {
     return Math.random().toString(36).substring(2, 7).toUpperCase();
   }
 
-  static async create(overrides?: Partial<User>): Promise<User> {
+  private static generateUniqueCpf(): string {
+    return faker.number.int({ min: 10000000000, max: 99999999999 }).toString();
+  }
+
+  private static generateUniqueEmail(index?: number): string {
+    const email = faker.internet.email();
+    const [username, domain] = email.split('@');
+    return `${username}${index ?? Date.now()}@${domain}`;
+  }
+
+  static async create(overrides?: Partial<User>, index?: number): Promise<User> {
     const password = 'ValidPassword123!';
     const hashedPassword = await bcryptjs.hash(password, 12);
 
     const user = await User.create({
       name: faker.person.fullName(),
-      email: faker.internet.email(),
+      email: this.generateUniqueEmail(index),
       password: hashedPassword,
-      cpf: faker.string.numeric('11'),
+      cpf: this.generateUniqueCpf(),
       friendCode: this.generateFriendCode(),
       resetPasswordTokenHash: null,
       resetPasswordExpiresAt: null,
@@ -36,7 +46,7 @@ export class UserFactory {
   static async createMany(count: number, overrides?: Partial<User>): Promise<User[]> {
     const users: User[] = [];
     for (let i = 0; i < count; i++) {
-      users.push(await this.create(overrides));
+      users.push(await this.create(overrides, i));
     }
     return users;
   }
@@ -57,7 +67,6 @@ export class TaskFactory {
       activity: faker.lorem.sentence(),
       points: faker.number.int({ min: 5, max: 50 }),
       completed: false,
-      photoUrl: null,
       analysis: null,
       scheduledFor: null,
       ...overrides,

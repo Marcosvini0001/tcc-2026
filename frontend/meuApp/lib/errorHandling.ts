@@ -2,7 +2,7 @@ import { Alert, Platform } from 'react-native';
 import { clearCurrentSession } from './sessionStore';
 
 type NavigationTarget = {
-  replace: (path: string) => void;
+  replace: (...args: unknown[]) => void;
 };
 
 const AUTH_ERROR_MATCHERS = [

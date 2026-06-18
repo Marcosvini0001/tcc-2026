@@ -172,7 +172,7 @@ export async function apiGetRanking(): Promise<ApiRankingUser[]> {
 
 export async function apiCreateTask(
   userId: number,
-  payload: { photoUrl?: string; activity: string; scheduledFor?: string }
+  payload: { activity: string; scheduledFor?: string }
 ): Promise<ApiTask> {
   ensureValidUserId(userId);
   return request<ApiTask>(`/users/${userId}/tasks`, {
@@ -193,57 +193,3 @@ export async function apiCompleteTask(userId: number, taskId: number): Promise<A
   });
 }
 
-export async function apiUploadTaskPhoto(
-  userId: number,
-  uri: string,
-  activity: string,
-  scheduledFor?: string
-): Promise<ApiTask> {
-  ensureValidUserId(userId);
-  const formData = new FormData();
-  const extension = uri.split('.').pop()?.toLowerCase();
-  const type = extension === 'png' ? 'image/png' : 'image/jpeg';
-
-  formData.append('photo', {
-    uri,
-    name: `task-${Date.now()}.${extension || 'jpg'}`,
-    type,
-  } as any);
-  formData.append('activity', activity);
-  if (scheduledFor) {
-    formData.append('scheduledFor', scheduledFor);
-  }
-
-  const response = await fetch(`${API_BASE_URL}/users/${userId}/tasks/upload`, {
-    method: 'POST',
-    headers: buildHeaders(undefined, false),
-    body: formData,
-  });
-
-  if (!response.ok) {
-    let message = 'Upload failed';
-    try {
-      const data = (await response.json()) as { message?: string };
-      message = data.message ?? message;
-    } catch (_error) {
-      // Keep default message.
-    }
-
-    if (response.status === 401) {
-      await clearCurrentSession();
-    }
-
-    throw new Error(message);
-  }
-
-  return (await response.json()) as ApiTask;
-}
-
-export async function apiAnalyzeTaskPhoto(userId: number, taskId: number): Promise<ApiTask> {
-  ensureValidUserId(userId);
-  const result = await request<{ task: ApiTask }>(`/users/${userId}/tasks/${taskId}/analyze`, {
-    method: 'POST',
-  });
-
-  return result.task;
-}

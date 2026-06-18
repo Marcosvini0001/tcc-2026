@@ -1,6 +1,5 @@
 import express from 'express';
 import cors from 'cors';
-import multer from 'multer';
 import path from 'node:path';
 
 import userRoutes from './routes/userRoutes';
@@ -14,9 +13,10 @@ import './models/admModels';
 import './models/userFriendModels';
 import './models/taskModels';
 
+/**
+ * Configura o servidor Express da API, aplica middlewares e define rotas.
+ */
 const app = express();
-const uploadsDir = path.resolve(process.cwd(), 'uploads');
-
 // Configurar rate limiters
 const generalRateLimit = RateLimiters.general();
 const authRateLimit = RateLimiters.auth();
@@ -27,9 +27,11 @@ app.use(express.json({ limit: '10mb' }));
 app.use(requestIdMiddleware);
 app.use(metricsMiddleware);
 app.use(generalRateLimit.middleware());
-app.use('/uploads', express.static(uploadsDir));
 
-// Health check com informações básicas
+/**
+ * Endpoint de verificação de saúde da aplicação.
+ * Retorna status, data atual e tempo de atividade para monitoramento.
+ */
 app.get('/health', (_req, res) => {
   res.json({ 
     status: 'ok',
@@ -38,7 +40,9 @@ app.get('/health', (_req, res) => {
   });
 });
 
-// Endpoint de métricas
+/**
+ * Endpoint que expõe métricas de desempenho e uso coletadas pela aplicação.
+ */
 app.get('/metrics', metricsEndpoint);
 
 // Rate limit mais estrito para autenticação
@@ -47,16 +51,11 @@ app.use('/auth', authRateLimit.middleware());
 app.use('/users', userRoutes);
 app.use('/adms', admRoutes);
 
+/**
+ * Middleware global de tratamento de erros.
+ * Converte exceções em respostas HTTP padronizadas e registra logs.
+ */
 app.use((error: unknown, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  if (error instanceof multer.MulterError) {
-    logger.warn('Multer error', { requestId: req.requestId, error: error.message });
-    return res.status(400).json({ message: error.message });
-  }
-
-  if (error instanceof Error && error.message === 'Only image files are allowed') {
-    logger.warn('Invalid file type', { requestId: req.requestId });
-    return res.status(400).json({ message: error.message });
-  }
 
   if (error instanceof Error) {
     logger.error('Unhandled application error', { requestId: req.requestId, error: error.message, stack: error.stack });
