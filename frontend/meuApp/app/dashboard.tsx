@@ -41,6 +41,7 @@ export default function DashboardScreen() {
   const router = useRouter();
   const [tasks, setTasks] = React.useState<ApiTask[]>([]);
   const [activityName, setActivityName] = React.useState('');
+  const [activityDescription, setActivityDescription] = React.useState('');
   const [scheduledForInput, setScheduledForInput] = React.useState('');
   const [loadingTasks, setLoadingTasks] = React.useState(true);
   const [savingTask, setSavingTask] = React.useState(false);
@@ -156,10 +157,12 @@ export default function DashboardScreen() {
 
       await apiCreateTask(currentUser.id, {
         activity: activityName.trim(),
+        description: activityDescription.trim() || undefined,
         scheduledFor: scheduledForInput.trim() || undefined,
       });
 
       setActivityName('');
+      setActivityDescription('');
       setScheduledForInput('');
       await Promise.all([loadTasks(), loadProfile()]);
       Alert.alert('Atividade criada', 'Atividade cadastrada com sucesso.');
@@ -319,6 +322,15 @@ export default function DashboardScreen() {
                   );
                 })}
               </View>
+
+              <TextInput
+                testID="dashboard-description-input"
+                value={activityDescription}
+                onChangeText={setActivityDescription}
+                placeholder="Descrição (opcional)"
+                placeholderTextColor="#888"
+                style={styles.textInput}
+              />
 
               <TextInput
                 testID="dashboard-scheduled-input"

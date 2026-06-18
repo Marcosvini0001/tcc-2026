@@ -20,10 +20,10 @@ import {
 } from '../services/passwordResetService';
 import {
   buildTaskProgressSummary,
-  getActivityPoints,
   getUserProgressSummaryFromStats,
   parseScheduledFor,
 } from '../services/progressService';
+import { createTaskForUser, TaskServiceError } from '../services/taskService';
 import { EMAIL_REGEX, normalizeCpf, normalizeEmail, normalizeText } from '../utils/validation';
 
 const toSafeNumber = (value: unknown) => {
@@ -588,36 +588,28 @@ export const removeFriend = async (req: Request, res: Response) => {
   }
 };
 
-/**
- * Controlador que cadastra uma nova tarefa manualmente para o usuário.
- * As tarefas nao exigem foto de comprovação e comecam como pendentes.
- */
 export const createTask = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
-    const { activity, scheduledFor } = req.body;
-    const normalizedActivity = normalizeText(activity);
-    const parsedScheduledFor = parseScheduledFor(scheduledFor);
+    const userId = Number(req.params.id);
+    if (!Number.isFinite(userId)) {
+      return res.status(400).json({ message: 'Invalid user id' });
+    }
 
+    const { activity, scheduledFor, description } = req.body;
+    const normalizedActivity = normalizeText(activity);
     if (!normalizedActivity) {
       return res.status(400).json({ message: 'activity is required' });
     }
 
-    const user = await User.findByPk(id as string);
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
-    }
+    const parsedScheduledFor = parseScheduledFor(scheduledFor);
+    const normalizedDescription = normalizeText(description) || null;
 
-    const task = await Task.create({
-      userId: user.get('id') as number,
-      activity: normalizedActivity,
-      points: getActivityPoints(normalizedActivity),
-      completed: false,
-      scheduledFor: parsedScheduledFor,
-    });
-
+    const task = await createTaskForUser(userId, normalizedActivity, normalizedDescription, parsedScheduledFor);
     return res.status(201).json(sanitizeTask(task));
   } catch (error) {
+    if (error instanceof TaskServiceError) {
+      return res.status(error.status).json({ message: error.message });
+    }
     logger.error('Error creating task:', { requestId: req.requestId, error: error instanceof Error ? error.message : String(error) });
     return res.status(500).json({ message: 'Internal server error' });
   }

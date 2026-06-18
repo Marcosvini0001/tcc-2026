@@ -38,6 +38,7 @@ export interface ApiTask {
   id: number;
   userId: number;
   activity: string;
+  description: string | null;
   photoUrl: string | null;
   points: number;
   completed: boolean;
@@ -172,7 +173,7 @@ export async function apiGetRanking(): Promise<ApiRankingUser[]> {
 
 export async function apiCreateTask(
   userId: number,
-  payload: { activity: string; scheduledFor?: string }
+  payload: { activity: string; description?: string; scheduledFor?: string }
 ): Promise<ApiTask> {
   ensureValidUserId(userId);
   return request<ApiTask>(`/users/${userId}/tasks`, {

@@ -65,6 +65,21 @@ const countPersonalizedTasksToday = async (userId: number) => {
   return tasks.filter((task) => !isStandardTaskTitle(task.activity)).length;
 };
 
+const countSameStandardTaskToday = async (userId: number, normalizedTitle: string) => {
+  const { start, end } = getTodayRange();
+
+  const tasks = await Task.findAll({
+    where: {
+      userId,
+      createdAt: {
+        [Op.between]: [start, end],
+      },
+    },
+  });
+
+  return tasks.filter((task) => normalizeTaskTitle(task.activity) === normalizedTitle).length;
+};
+
 export const createTaskForUser = async (
   userId: number,
   activity: string,
@@ -87,6 +102,11 @@ export const createTaskForUser = async (
     const existingPersonalizedCount = await countPersonalizedTasksToday(userId);
     if (existingPersonalizedCount >= 2) {
       throw new TaskServiceError('Você atingiu o limite de 2 atividades personalizadas por hoje.', 400);
+    }
+  } else {
+    const occurrencesToday = await countSameStandardTaskToday(userId, normalizeTaskTitle(title));
+    if (occurrencesToday >= 2) {
+      throw new TaskServiceError('Você já realizou esta atividade 2 vezes hoje.', 400);
     }
   }
 

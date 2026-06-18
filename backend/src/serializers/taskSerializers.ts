@@ -7,6 +7,7 @@ export const sanitizeTask = (task: Task) => {
     id: Number(raw.id),
     userId: Number(raw.userId),
     activity: String(raw.activity ?? ''),
+    description: (raw.description as string | null) ?? null,
     points: Number(raw.points ?? 0),
     completed: Boolean(raw.completed),
     analysis: (raw.analysis as string | null) ?? null,
