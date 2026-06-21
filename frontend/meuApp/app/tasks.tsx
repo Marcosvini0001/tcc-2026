@@ -263,7 +263,7 @@ export default function TasksScreen() {
                 testID="tasks-scheduled-input"
                 value={scheduledForInput}
                 onChangeText={setScheduledForInput}
-                placeholder="Data programada (AAAA-MM-DD) opcional"
+                placeholder="Data (opcional)"
                 placeholderTextColor="#888"
                 style={styles.textInput}
                 autoCapitalize="none"
