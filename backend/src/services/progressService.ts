@@ -23,6 +23,17 @@ export type UserProgressSummary = TaskProgressSummary & {
 const LEVEL_STEP = 250;
 const FRIEND_BONUS_POINTS = 30;
 
+const getLevelFloor = (level: number) => {
+  if (level <= 1) {
+    return 0;
+  }
+
+  // Triangular progression: level 2 needs 250, level 3 needs 750, level 4 needs 1500, etc.
+  return Math.round((LEVEL_STEP * level * (level - 1)) / 2);
+};
+
+const getNextLevelAt = (level: number) => getLevelFloor(level + 1);
+
 const toSafeInteger = (value: number) => {
   if (!Number.isFinite(value)) {
     return 0;
@@ -146,10 +157,17 @@ export const getTaskProgressSummary = (tasks: ProgressTask[]): TaskProgressSumma
 
 export const getLevelSummary = (points: number) => {
   const safePoints = Math.max(0, points);
-  const level = Math.max(1, Math.floor(safePoints / LEVEL_STEP) + 1);
-  const nextLevelAt = level * LEVEL_STEP;
-  const levelFloor = (level - 1) * LEVEL_STEP;
-  const progressPercent = Math.round(((safePoints - levelFloor) / LEVEL_STEP) * 100);
+  let level = 1;
+
+  while (safePoints >= getNextLevelAt(level)) {
+    level += 1;
+  }
+
+  const levelFloor = getLevelFloor(level);
+  const nextLevelAt = getNextLevelAt(level);
+  const pointsInCurrentLevel = Math.max(0, safePoints - levelFloor);
+  const pointsRequiredForNextLevel = Math.max(1, nextLevelAt - levelFloor);
+  const progressPercent = Math.round((pointsInCurrentLevel / pointsRequiredForNextLevel) * 100);
 
   return {
     level,

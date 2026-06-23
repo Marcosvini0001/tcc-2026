@@ -10,6 +10,9 @@ import {
   updateUser,
   deleteUser,
   addFriendByCode,
+  getPendingFriendRequests,
+  acceptFriendRequest,
+  rejectFriendRequest,
   getUserFriends,
   removeFriend,
   createTask,
@@ -34,6 +37,9 @@ router.get('/:id', requireUserAccess, getUserById);
 router.put('/:id', requireUserAccess, updateUser);
 router.delete('/:id', requireUserAccess, deleteUser);
 router.post('/:id/friends', requireUserAccess, addFriendByCode);
+router.get('/:id/friend-requests', requireUserAccess, getPendingFriendRequests);
+router.patch('/:id/friend-requests/:requestId/accept', requireUserAccess, acceptFriendRequest);
+router.delete('/:id/friend-requests/:requestId', requireUserAccess, rejectFriendRequest);
 router.get('/:id/friends', requireUserAccess, getUserFriends);
 router.delete('/:id/friends/:friendId', requireUserAccess, removeFriend);
 router.post('/:id/tasks', requireUserAccess, createTask);

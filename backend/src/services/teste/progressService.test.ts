@@ -230,4 +230,18 @@ describe('progressService - Level Summary', () => {
     expect(levelSummary.level).toBe(1);
     expect(levelSummary.nextLevelAt).toBe(250);
   });
+
+  it('deve aplicar progressao de pontos crescente por nivel', () => {
+    // Arrange
+    const points = 900;
+
+    // Act
+    const levelSummary = getLevelSummary(points);
+
+    // Assert
+    expect(levelSummary.level).toBe(3);
+    expect(levelSummary.nextLevelAt).toBe(1500);
+    expect(levelSummary.pointsToNextLevel).toBe(600);
+    expect(levelSummary.progressPercent).toBe(20);
+  });
 });

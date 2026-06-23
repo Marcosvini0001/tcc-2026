@@ -75,6 +75,7 @@ describe('Qualidade dos testes e foco em testabilidade', () => {
                 }).then((task) => {
                   cy.completeTaskByApi(mainSession, task.id);
                   cy.addFriendByApi(mainSession, friendSession.user.friendCode);
+                  cy.addFriendByApi(friendSession, mainSession.user.friendCode);
 
                   cy.intercept('GET', `**/users/${mainSession.user.id}`).as('profileRequest');
                   cy.intercept('GET', `**/users/${mainSession.user.id}/tasks`).as('tasksRequest');
@@ -173,7 +174,7 @@ describe('Qualidade dos testes e foco em testabilidade', () => {
               failOnStatusCode: false,
             }).then((response) => {
               expect(response.status).to.eq(409);
-              expect(response.body.message).to.eq('Amigo ja adicionado');
+              expect(response.body.message).to.eq('Convite ja enviado');
             });
           });
         });

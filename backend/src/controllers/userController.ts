@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import { Op, col, fn, literal } from 'sequelize';
 import sequelize from '../config/database';
 import User from '../models/userModels';
-import UserFriend from '../models/userFriendModels';
+import UserFriend, { FRIENDSHIP_STATUS } from '../models/userFriendModels';
 import Task from '../models/taskModels';
 import { sanitizeTask } from '../serializers/taskSerializers';
 import { sanitizeUser } from '../serializers/userSerializers';
@@ -268,7 +268,7 @@ export const getRanking = async (req: Request, res: Response) => {
 
     const currentUserId = req.auth.userId;
     const currentUserRelations = await UserFriend.findAll({
-      where: { userId: currentUserId },
+      where: { userId: currentUserId, status: FRIENDSHIP_STATUS.ACCEPTED },
       attributes: ['friendId'],
       raw: true,
     });
@@ -288,7 +288,7 @@ export const getRanking = async (req: Request, res: Response) => {
         order: [['createdAt', 'ASC']],
       }),
       UserFriend.findAll({
-        where: { userId: { [Op.in]: rankingUserIds } },
+        where: { userId: { [Op.in]: rankingUserIds }, status: FRIENDSHIP_STATUS.ACCEPTED },
         attributes: ['userId', [fn('COUNT', col('friendId')), 'friendsCount']],
         group: ['userId'],
         raw: true,
@@ -388,7 +388,7 @@ export const getUserById = async (req: Request, res: Response) => {
     const userId = user.get('id') as number;
 
     const [friendsCount, totalTasks, completedTasks, taskPoints] = await Promise.all([
-      UserFriend.count({ where: { userId } }),
+      UserFriend.count({ where: { userId, status: FRIENDSHIP_STATUS.ACCEPTED } }),
       Task.count({ where: { userId } }),
       Task.count({ where: { userId, completed: true } }),
       Task.sum('points', { where: { userId, completed: true } }),
@@ -493,33 +493,90 @@ export const addFriendByCode = async (req: Request, res: Response) => {
       return res.status(400).json({ message: 'Voce nao pode se adicionar como amigo' });
     }
 
-    await sequelize.transaction(async (transaction) => {
-      const existingRelation = await UserFriend.findOne({
-        where: { userId, friendId },
-        transaction,
-        lock: true,
-      });
+    const inviteResult = await sequelize.transaction(async (transaction) => {
+      const [existingDirectRelation, reverseRelation] = await Promise.all([
+        UserFriend.findOne({
+          where: { userId, friendId },
+          transaction,
+          lock: true,
+        }),
+        UserFriend.findOne({
+          where: { userId: friendId, friendId: userId },
+          transaction,
+          lock: true,
+        }),
+      ]);
 
-      if (existingRelation) {
+      if (existingDirectRelation?.status === FRIENDSHIP_STATUS.ACCEPTED) {
         throw new Error('Amigo ja adicionado');
       }
 
-      await UserFriend.create({ userId, friendId }, { transaction });
+      if (existingDirectRelation?.status === FRIENDSHIP_STATUS.PENDING) {
+        throw new Error('Convite ja enviado');
+      }
+
+      if (reverseRelation?.status === FRIENDSHIP_STATUS.PENDING) {
+        reverseRelation.status = FRIENDSHIP_STATUS.ACCEPTED;
+        await reverseRelation.save({ transaction });
+
+        if (existingDirectRelation) {
+          existingDirectRelation.status = FRIENDSHIP_STATUS.ACCEPTED;
+          await existingDirectRelation.save({ transaction });
+        } else {
+          await UserFriend.create(
+            { userId, friendId, status: FRIENDSHIP_STATUS.ACCEPTED },
+            { transaction }
+          );
+        }
+
+        return { status: FRIENDSHIP_STATUS.ACCEPTED, message: 'Convite aceito automaticamente' };
+      }
+
+      if (reverseRelation?.status === FRIENDSHIP_STATUS.ACCEPTED) {
+        if (existingDirectRelation) {
+          existingDirectRelation.status = FRIENDSHIP_STATUS.ACCEPTED;
+          await existingDirectRelation.save({ transaction });
+        } else {
+          await UserFriend.create(
+            { userId, friendId, status: FRIENDSHIP_STATUS.ACCEPTED },
+            { transaction }
+          );
+        }
+
+        return { status: FRIENDSHIP_STATUS.ACCEPTED, message: 'Amigo ja adicionado' };
+      }
+
+      if (existingDirectRelation) {
+        existingDirectRelation.status = FRIENDSHIP_STATUS.PENDING;
+        await existingDirectRelation.save({ transaction });
+      } else {
+        await UserFriend.create(
+          { userId, friendId, status: FRIENDSHIP_STATUS.PENDING },
+          { transaction }
+        );
+      }
+
+      return { status: FRIENDSHIP_STATUS.PENDING, message: 'Convite enviado com sucesso' };
     });
 
-    logger.info('Friend added successfully', {
+    logger.info('Friend invitation processed', {
       requestId: req.requestId,
       userId,
-      friendId
+      friendId,
+      status: inviteResult.status
     });
 
     return res.status(201).json({
-      message: 'Friend added successfully',
+      message: inviteResult.message,
+      status: inviteResult.status,
       friend: sanitizeUser(friend),
     });
   } catch (error) {
     if (error instanceof Error && error.message === 'Amigo ja adicionado') {
       return res.status(409).json({ message: 'Amigo ja adicionado' });
+    }
+    if (error instanceof Error && error.message === 'Convite ja enviado') {
+      return res.status(409).json({ message: 'Convite ja enviado' });
     }
     logger.error('Error adding friend by code', { requestId: req.requestId, error: error instanceof Error ? error.message : String(error) });
     return res.status(500).json({ message: 'Internal server error' });
@@ -536,7 +593,7 @@ export const getUserFriends = async (req: Request, res: Response) => {
     }
 
     const userId = user.get('id') as number;
-    const relations = await UserFriend.findAll({ where: { userId } });
+    const relations = await UserFriend.findAll({ where: { userId, status: FRIENDSHIP_STATUS.ACCEPTED } });
     const friendIds = relations.map((relation) => relation.get('friendId') as number);
 
     if (friendIds.length === 0) {
@@ -568,7 +625,12 @@ export const removeFriend = async (req: Request, res: Response) => {
     }
 
     const deleted = await UserFriend.destroy({
-      where: { userId, friendId: parsedFriendId },
+      where: {
+        [Op.or]: [
+          { userId, friendId: parsedFriendId },
+          { userId: parsedFriendId, friendId: userId },
+        ],
+      },
     });
 
     if (deleted === 0) {
@@ -578,6 +640,150 @@ export const removeFriend = async (req: Request, res: Response) => {
     return res.json({ message: 'Friend removed successfully' });
   } catch (error) {
     logger.error('Error removing friend:', { requestId: req.requestId, error: error instanceof Error ? error.message : String(error) });
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+export const getPendingFriendRequests = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const user = await User.findByPk(id as string);
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const userId = user.get('id') as number;
+    const pendingRelations = await UserFriend.findAll({
+      where: { friendId: userId, status: FRIENDSHIP_STATUS.PENDING },
+      order: [['createdAt', 'DESC']],
+    });
+
+    if (pendingRelations.length === 0) {
+      return res.json([]);
+    }
+
+    const requesterIds = pendingRelations.map((relation) => relation.userId);
+    const requesters = await User.findAll({
+      where: { id: { [Op.in]: requesterIds } },
+    });
+
+    const requesterMap = new Map<number, ReturnType<typeof sanitizeUser>>();
+    requesters.forEach((requester) => {
+      requesterMap.set(requester.id, sanitizeUser(requester));
+    });
+
+    const requests = pendingRelations
+      .map((relation) => {
+        const requester = requesterMap.get(relation.userId);
+        if (!requester) {
+          return null;
+        }
+
+        return {
+          requestId: relation.id,
+          status: relation.status,
+          createdAt: relation.createdAt,
+          requester,
+        };
+      })
+      .filter((request): request is NonNullable<typeof request> => request !== null);
+
+    return res.json(requests);
+  } catch (error) {
+    logger.error('Error fetching pending friend requests:', { requestId: req.requestId, error: error instanceof Error ? error.message : String(error) });
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+export const acceptFriendRequest = async (req: Request, res: Response) => {
+  try {
+    const userId = Number(req.params.id);
+    const requestId = Number(req.params.requestId);
+
+    if (!Number.isFinite(userId) || userId <= 0 || !Number.isFinite(requestId) || requestId <= 0) {
+      return res.status(400).json({ message: 'Invalid friend request data' });
+    }
+
+    const result = await sequelize.transaction(async (transaction) => {
+      const pendingRequest = await UserFriend.findOne({
+        where: { id: requestId, friendId: userId, status: FRIENDSHIP_STATUS.PENDING },
+        transaction,
+        lock: true,
+      });
+
+      if (!pendingRequest) {
+        throw new Error('Friend request not found');
+      }
+
+      pendingRequest.status = FRIENDSHIP_STATUS.ACCEPTED;
+      await pendingRequest.save({ transaction });
+
+      const reverseRelation = await UserFriend.findOne({
+        where: {
+          userId,
+          friendId: pendingRequest.userId,
+        },
+        transaction,
+        lock: true,
+      });
+
+      if (reverseRelation) {
+        reverseRelation.status = FRIENDSHIP_STATUS.ACCEPTED;
+        await reverseRelation.save({ transaction });
+      } else {
+        await UserFriend.create(
+          {
+            userId,
+            friendId: pendingRequest.userId,
+            status: FRIENDSHIP_STATUS.ACCEPTED,
+          },
+          { transaction }
+        );
+      }
+
+      return pendingRequest;
+    });
+
+    const requester = await User.findByPk(result.userId as number);
+
+    return res.json({
+      message: 'Convite aceito com sucesso',
+      friend: requester ? sanitizeUser(requester) : null,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Friend request not found') {
+      return res.status(404).json({ message: 'Convite nao encontrado' });
+    }
+    logger.error('Error accepting friend request:', { requestId: req.requestId, error: error instanceof Error ? error.message : String(error) });
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+export const rejectFriendRequest = async (req: Request, res: Response) => {
+  try {
+    const userId = Number(req.params.id);
+    const requestId = Number(req.params.requestId);
+
+    if (!Number.isFinite(userId) || userId <= 0 || !Number.isFinite(requestId) || requestId <= 0) {
+      return res.status(400).json({ message: 'Invalid friend request data' });
+    }
+
+    const deleted = await UserFriend.destroy({
+      where: {
+        id: requestId,
+        friendId: userId,
+        status: FRIENDSHIP_STATUS.PENDING,
+      },
+    });
+
+    if (deleted === 0) {
+      return res.status(404).json({ message: 'Convite nao encontrado' });
+    }
+
+    return res.json({ message: 'Convite recusado com sucesso' });
+  } catch (error) {
+    logger.error('Error rejecting friend request:', { requestId: req.requestId, error: error instanceof Error ? error.message : String(error) });
     return res.status(500).json({ message: 'Internal server error' });
   }
 };

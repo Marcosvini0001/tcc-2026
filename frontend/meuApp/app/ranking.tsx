@@ -11,7 +11,16 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
-import { apiAddFriendByCode, apiGetRanking, apiRemoveFriend, type ApiRankingUser } from '@/lib/api';
+import {
+  apiAcceptFriendRequest,
+  apiAddFriendByCode,
+  apiGetPendingFriendRequests,
+  apiGetRanking,
+  apiRejectFriendRequest,
+  apiRemoveFriend,
+  type ApiFriendRequest,
+  type ApiRankingUser,
+} from '@/lib/api';
 import { getErrorMessage, redirectToLoginOnAuthError, showAlert, showConfirm } from '@/lib/errorHandling';
 import { getCurrentUser, loadCurrentUser } from '@/lib/sessionStore';
 
@@ -21,6 +30,7 @@ export default function RankingScreen() {
   const [loading, setLoading] = React.useState(true);
   const [friendCodeInput, setFriendCodeInput] = React.useState('');
   const [isAddingFriend, setIsAddingFriend] = React.useState(false);
+  const [pendingRequests, setPendingRequests] = React.useState<ApiFriendRequest[]>([]);
 
   React.useEffect(() => {
     void (async () => {
@@ -34,8 +44,19 @@ export default function RankingScreen() {
   const loadRanking = React.useCallback(async () => {
     try {
       setLoading(true);
-      const data = await apiGetRanking();
-      setRanking(data);
+      const user = getCurrentUser() ?? (await loadCurrentUser());
+      if (!user) {
+        router.replace('/login');
+        return;
+      }
+
+      const [rankingData, pendingRequestsData] = await Promise.all([
+        apiGetRanking(),
+        apiGetPendingFriendRequests(user.id),
+      ]);
+
+      setRanking(rankingData);
+      setPendingRequests(pendingRequestsData);
     } catch (error) {
       const message = getErrorMessage(error, 'Falha ao carregar ranking.');
       if (await redirectToLoginOnAuthError(message, router)) {
@@ -66,10 +87,14 @@ export default function RankingScreen() {
 
     try {
       setIsAddingFriend(true);
-      const addedFriend = await apiAddFriendByCode(user.id, friendCodeInput.trim());
+      const result = await apiAddFriendByCode(user.id, friendCodeInput.trim());
       await loadRanking();
       setFriendCodeInput('');
-      showAlert('Amigo adicionado', `${addedFriend.name} agora aparece no ranking.`);
+      if (result.status === 'accepted') {
+        showAlert('Amizade confirmada', `${result.friend.name} agora aparece no ranking.`);
+      } else {
+        showAlert('Convite enviado', `Convite enviado para ${result.friend.name}.`);
+      }
     } catch (error) {
       const message = getErrorMessage(error, 'Nao foi possivel adicionar amigo.');
       if (await redirectToLoginOnAuthError(message, router)) {
@@ -78,6 +103,46 @@ export default function RankingScreen() {
       showAlert('Erro', message);
     } finally {
       setIsAddingFriend(false);
+    }
+  };
+
+  const handleAcceptRequest = async (request: ApiFriendRequest) => {
+    const user = getCurrentUser() ?? (await loadCurrentUser());
+    if (!user) {
+      showAlert('Sessao nao encontrada', 'Faca login novamente.');
+      return;
+    }
+
+    try {
+      await apiAcceptFriendRequest(user.id, request.requestId);
+      await loadRanking();
+      showAlert('Convite aceito', `${request.requester.name} foi adicionado ao ranking.`);
+    } catch (error) {
+      const message = getErrorMessage(error, 'Nao foi possivel aceitar o convite.');
+      if (await redirectToLoginOnAuthError(message, router)) {
+        return;
+      }
+      showAlert('Erro', message);
+    }
+  };
+
+  const handleRejectRequest = async (request: ApiFriendRequest) => {
+    const user = getCurrentUser() ?? (await loadCurrentUser());
+    if (!user) {
+      showAlert('Sessao nao encontrada', 'Faca login novamente.');
+      return;
+    }
+
+    try {
+      await apiRejectFriendRequest(user.id, request.requestId);
+      await loadRanking();
+      showAlert('Convite recusado', `Convite de ${request.requester.name} removido.`);
+    } catch (error) {
+      const message = getErrorMessage(error, 'Nao foi possivel recusar o convite.');
+      if (await redirectToLoginOnAuthError(message, router)) {
+        return;
+      }
+      showAlert('Erro', message);
     }
   };
 
@@ -180,10 +245,35 @@ export default function RankingScreen() {
                 activeOpacity={0.8}
                 disabled={isAddingFriend}>
                 <Text style={styles.addFriendButtonText}>
-                  {isAddingFriend ? '...' : 'Adicionar'}
+                  {isAddingFriend ? '...' : 'Enviar convite'}
                 </Text>
               </TouchableOpacity>
             </View>
+
+            {pendingRequests.length > 0 ? (
+              <View style={styles.requestsCard}>
+                <Text style={styles.requestsTitle}>Convites recebidos</Text>
+                {pendingRequests.map((request) => (
+                  <View key={request.requestId} style={styles.requestRow}>
+                    <Text style={styles.requestName}>{request.requester.name}</Text>
+                    <View style={styles.requestActions}>
+                      <TouchableOpacity
+                        style={styles.acceptButton}
+                        onPress={() => void handleAcceptRequest(request)}
+                        activeOpacity={0.8}>
+                        <Text style={styles.requestButtonText}>Aceitar</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.rejectButton}
+                        onPress={() => void handleRejectRequest(request)}
+                        activeOpacity={0.8}>
+                        <Text style={styles.requestButtonText}>Recusar</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            ) : null}
 
             {!loading && ranking.length === 0 ? (
               <View style={styles.emptyContainer}>
@@ -304,6 +394,55 @@ const styles = StyleSheet.create({
     gap: 8,
     marginTop: 12,
     marginBottom: 14,
+  },
+  requestsCard: {
+    backgroundColor: '#131C2B',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#24304C',
+    padding: 12,
+    marginBottom: 12,
+  },
+  requestsTitle: {
+    color: '#F8FAFC',
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 10,
+  },
+  requestRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#1F2A40',
+  },
+  requestName: {
+    color: '#F8FAFC',
+    fontSize: 13,
+    fontWeight: '600',
+    flex: 1,
+  },
+  requestActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  acceptButton: {
+    backgroundColor: '#16A34A',
+    borderRadius: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+  },
+  rejectButton: {
+    backgroundColor: '#B91C1C',
+    borderRadius: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+  },
+  requestButtonText: {
+    color: '#F8FAFC',
+    fontSize: 12,
+    fontWeight: '700',
   },
   addFriendInput: {
     flex: 1,

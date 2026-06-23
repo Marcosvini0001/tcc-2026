@@ -1,8 +1,8 @@
 import { Platform } from 'react-native';
 import { clearCurrentSession, getAccessToken } from './sessionStore';
-import type { ApiSession, ApiUser } from './contracts';
+import type { ApiFriendRequest, ApiSession, ApiUser } from './contracts';
 
-export type { ApiSession, ApiUser } from './contracts';
+export type { ApiFriendRequest, ApiSession, ApiUser } from './contracts';
 
 export interface ForgotPasswordResponse {
   message: string;
@@ -145,19 +145,41 @@ export async function apiGetUserById(userId: number): Promise<ApiUserProfile> {
   return request<ApiUserProfile>(`/users/${userId}`);
 }
 
-export async function apiAddFriendByCode(userId: number, friendCode: string): Promise<ApiUser> {
+export async function apiAddFriendByCode(
+  userId: number,
+  friendCode: string
+): Promise<{ friend: ApiUser; status: 'pending' | 'accepted'; message: string }> {
   ensureValidUserId(userId);
-  const result = await request<{ friend: ApiUser }>(`/users/${userId}/friends`, {
+  const result = await request<{ friend: ApiUser; status: 'pending' | 'accepted'; message: string }>(`/users/${userId}/friends`, {
     method: 'POST',
     body: JSON.stringify({ friendCode }),
   });
 
-  return result.friend;
+  return result;
 }
 
 export async function apiGetFriends(userId: number): Promise<ApiUser[]> {
   ensureValidUserId(userId);
   return request<ApiUser[]>(`/users/${userId}/friends`);
+}
+
+export async function apiGetPendingFriendRequests(userId: number): Promise<ApiFriendRequest[]> {
+  ensureValidUserId(userId);
+  return request<ApiFriendRequest[]>(`/users/${userId}/friend-requests`);
+}
+
+export async function apiAcceptFriendRequest(userId: number, requestId: number): Promise<{ friend: ApiUser | null; message: string }> {
+  ensureValidUserId(userId);
+  return request<{ friend: ApiUser | null; message: string }>(`/users/${userId}/friend-requests/${requestId}/accept`, {
+    method: 'PATCH',
+  });
+}
+
+export async function apiRejectFriendRequest(userId: number, requestId: number): Promise<{ message: string }> {
+  ensureValidUserId(userId);
+  return request<{ message: string }>(`/users/${userId}/friend-requests/${requestId}`, {
+    method: 'DELETE',
+  });
 }
 
 export async function apiRemoveFriend(userId: number, friendId: number): Promise<void> {
