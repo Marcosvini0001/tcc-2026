@@ -1,11 +1,13 @@
 import 'dotenv/config';
 import mysql from 'mysql2/promise';
+import { DataTypes } from 'sequelize';
 
 import app from './app';
 import sequelize from './config/database';
 import logger from './utils/logger';
 import Adm from './models/admModels';
 import { hashPassword } from './services/authService';
+import { FRIENDSHIP_STATUS } from './models/userFriendModels';
 
 const PORT = Number(process.env.PORT || 3000);
 const dbType = process.env.DB_TYPE?.trim().toLowerCase() || 'sqlite';
@@ -61,6 +63,20 @@ const ensureAdminExists = async () => {
   }
 };
 
+const ensureCompatibilitySchema = async () => {
+  const queryInterface = sequelize.getQueryInterface();
+  const userFriendsTable = await queryInterface.describeTable('user_friends');
+
+  if (!('status' in userFriendsTable)) {
+    await queryInterface.addColumn('user_friends', 'status', {
+      type: DataTypes.STRING(20),
+      allowNull: false,
+      defaultValue: FRIENDSHIP_STATUS.PENDING,
+    });
+    console.log('startServer: added missing user_friends.status column');
+  }
+};
+
 const startServer = async () => {
   try {
     if (dbType === 'mysql') {
@@ -102,6 +118,15 @@ const startServer = async () => {
       console.log('startServer: sequelize synced');
     } catch (err) {
       console.warn('startServer: sequelize.sync failed or timed out, continuing startup', err instanceof Error ? err.message : String(err));
+    }
+
+    try {
+      await ensureCompatibilitySchema();
+    } catch (err) {
+      console.warn(
+        'startServer: compatibility schema update failed, continuing startup',
+        err instanceof Error ? err.message : String(err)
+      );
     }
 
     await ensureAdminExists();

@@ -9,7 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import {
   apiGetTasks,
@@ -66,9 +66,11 @@ export default function DashboardScreen() {
     }
   }, [currentUser, router]);
 
-  React.useEffect(() => {
-    void loadProfile();
-  }, [loadProfile]);
+  useFocusEffect(
+    React.useCallback(() => {
+      void loadProfile();
+    }, [loadProfile])
+  );
 
   const plannedTasks = tasks.filter((task) => !task.completed);
   const completedTasks = tasks.filter((task) => task.completed);
